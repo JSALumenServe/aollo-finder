@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apollo Contact Finder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white;
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 600; }
+    header p { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
+    .credits-bar {
+      margin-left: auto; background: rgba(255,255,255,.15); border-radius: 8px;
+      padding: 8px 16px; font-size: 0.82rem; text-align: right; min-width: 160px;
+    }
+    .credits-bar strong { display: block; font-size: 1.1rem; }
+
+    .logo { font-size: 2rem; }
+
+    main { max-width: 860px; margin: 36px auto; padding: 0 16px 60px; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+      padding: 32px;
+      margin-bottom: 28px;
+    }
+    .card h2 { font-size: 1.1rem; color: #1a73e8; margin-bottom: 20px; font-weight: 600; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .full { grid-column: 1 / -1; }
+
+    label { display: block; font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 5px; }
+    input, select {
+      width: 100%; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+      font-size: 0.93rem; transition: border-color .2s;
+    }
+    input:focus, select:focus { outline: none; border-color: #1a73e8; }
+
+    .delivery-toggle {
+      display: flex; gap: 12px; margin-top: 4px;
+    }
+    .toggle-btn {
+      flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px;
+      background: white; cursor: pointer; font-size: 0.9rem; font-weight: 500;
+      transition: all .2s; text-align: center;
+    }
+    .toggle-btn.active { border-color: #1a73e8; background: #e8f0fd; color: #1a73e8; }
+
+    #email-field { display: none; margin-top: 12px; }
+
+    .btn-search {
+      width: 100%; padding: 13px; background: #1a73e8; color: white;
+      border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;
+      cursor: pointer; margin-top: 20px; transition: background .2s;
+    }
+    .btn-search:hover { background: #1558c0; }
+    .btn-search:disabled { background: #aaa; cursor: not-allowed; }
+
+    /* Results */
+    #results { display: none; }
+    .result-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px;
+    }
+    .badge {
+      background: #e8f5e9; color: #2e7d32; font-weight: 600;
+      padding: 4px 12px; border-radius: 20px; font-size: 0.82rem;
+    }
+
+    .contact-card {
+      border: 1.5px solid #e8eaf0; border-radius: 10px;
+      padding: 18px 20px; margin-bottom: 12px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px;
+      transition: box-shadow .15s;
+    }
+    .contact-card:hover { box-shadow: 0 3px 14px rgba(0,0,0,.1); }
+
+    .contact-name { font-size: 1.05rem; font-weight: 700; color: #1a1a2e; grid-column: 1/-1; }
+    .contact-field { font-size: 0.87rem; color: #555; }
+    .contact-field span { color: #222; font-weight: 500; }
+    .contact-field a { color: #1a73e8; text-decoration: none; }
+    .contact-field a:hover { text-decoration: underline; }
+
+    .email-hidden { color: #aaa; font-style: italic; }
+
+    .alert {
+      padding: 14px 18px; border-radius: 8px; margin-bottom: 16px; font-size: 0.92rem;
+    }
+    .alert-success { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+    .alert-error { background: #fce4ec; color: #c62828; border: 1px solid #ef9a9a; }
+    .alert-info { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 3px solid rgba(255,255,255,.4); border-top-color: white;
+      border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .no-results { text-align: center; color: #888; padding: 32px; font-size: 0.95rem; }
+
+    .tip {
+      font-size: 0.8rem; color: #888; margin-top: 6px; line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🔭</div>
+  <div>
+    <h1>Apollo Contact Finder</h1>
+    <p>Powered by Apollo.io · LumenServe Sales Team</p>
+  </div>
+  <div class="credits-bar" id="credits-bar" style="display:none">
+    <strong id="credits-remaining">—</strong>
+    email credits remaining
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Search for Contacts</h2>
+    <div class="grid">
+
+      <div>
+        <label for="name">Person Name</label>
+        <input type="text" id="name" placeholder="e.g. Jane Smith">
+      </div>
+
+      <div>
+        <label for="company">Company</label>
+        <input type="text" id="company" placeholder="e.g. Acme Corp">
+      </div>
+
+      <div>
+        <label for="title">Job Title(s)</label>
+        <input type="text" id="title" placeholder="e.g. VP Sales, Director of IT">
+        <div class="tip">Separate multiple titles with commas</div>
+      </div>
+
+      <div>
+        <label for="location">Location</label>
+        <input type="text" id="location" placeholder="e.g. New York, Texas">
+      </div>
+
+      <div class="full">
+        <label for="industry">Industry / Keyword</label>
+        <input type="text" id="industry" placeholder="e.g. SaaS, healthcare, logistics">
+      </div>
+
+
+    </div>
+
+    <button class="btn-search" id="search-btn" onclick="doSearch()">Search Apollo</button>
+  </div>
+
+  <!-- Results section -->
+  <div id="results">
+    <div class="result-header">
+      <h2 style="color:#333;font-size:1.1rem">Results</h2>
+      <span class="badge" id="count-badge">0 found</span>
+    </div>
+    <div id="results-body"></div>
+  </div>
+</main>
+
+<script>
+  async function doSearch() {
+    const btn = document.getElementById('search-btn');
+    const resultsDiv = document.getElementById('results');
+    const body = document.getElementById('results-body');
+
+    const payload = {
+      name:     document.getElementById('name').value.trim(),
+      company:  document.getElementById('company').value.trim(),
+      title:    document.getElementById('title').value.trim(),
+      location: document.getElementById('location').value.trim(),
+      industry: document.getElementById('industry').value.trim(),
+    };
+
+    if (!payload.name && !payload.company && !payload.title && !payload.location && !payload.industry) {
+      showAlert(body, 'Please fill in at least one search field.', 'error');
+      resultsDiv.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Searching Apollo...';
+    resultsDiv.style.display = 'none';
+    body.innerHTML = '';
+
+    try {
+      const resp = await fetch('/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await resp.json();
+      resultsDiv.style.display = 'block';
+
+      if (!resp.ok || data.error) {
+        showAlert(body, data.error || 'An error occurred.', 'error');
+        document.getElementById('count-badge').textContent = 'Error';
+        return;
+      }
+
+      document.getElementById('count-badge').textContent = `${data.count} found`;
+
+      // Update credits display
+      if (data.credits && data.credits.remaining != null) {
+        const bar = document.getElementById('credits-bar');
+        const rem = data.credits.remaining;
+        bar.style.display = 'block';
+        bar.style.background = rem <= 5 ? 'rgba(220,50,50,.5)' : 'rgba(255,255,255,.15)';
+        document.getElementById('credits-remaining').textContent = rem;
+        if (rem <= 5) {
+          showAlert(body, `⚠️ Warning: only ${rem} email credit(s) remaining on Apollo. Contact info may be limited.`, 'info');
+          return;
+        }
+      }
+
+      if (data.count === 0) {
+        body.innerHTML = '<div class="no-results">No contacts found — try broadening your search criteria.</div>';
+        return;
+      }
+
+      data.contacts.forEach(c => {
+        const emailHtml = c.email.includes('Not revealed')
+          ? `<span class="email-hidden">${c.email}</span>`
+          : `<a href="mailto:${c.email}">${c.email}</a>`;
+
+        const linkedinHtml = c.linkedin
+          ? `<a href="${c.linkedin}" target="_blank">View Profile →</a>`
+          : '—';
+
+        body.innerHTML += `
+          <div class="contact-card">
+            <div class="contact-name">${c.name || '(No name)'}</div>
+            <div class="contact-field">🏷️ Title: <span>${c.title}</span></div>
+            <div class="contact-field">🏢 Company: <span>${c.company}</span></div>
+            <div class="contact-field">📍 Location: <span>${c.location || '—'}</span></div>
+            <div class="contact-field">✉️ Email: <span>${emailHtml}</span></div>
+            <div class="contact-field">🔗 LinkedIn: <span>${linkedinHtml}</span></div>
+            ${c.phone ? `<div class="contact-field">📞 Phone: <span>${c.phone}</span></div>` : ''}
+          </div>`;
+      });
+
+    } catch (e) {
+      showAlert(body, 'Network error — is the Flask server running?', 'error');
+      resultsDiv.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Search Apollo';
+    }
+  }
+
+  function showAlert(container, msg, type) {
+    container.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  }
+
+  // Allow Enter key to trigger search
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.activeElement.tagName === 'INPUT') doSearch();
+  });
+</script>
+
+</body>
+</html>
