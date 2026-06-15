@@ -23,6 +23,7 @@
       padding: 8px 16px; font-size: 0.82rem; text-align: right; min-width: 160px;
     }
     .credits-bar strong { display: block; font-size: 1.1rem; }
+    .credits-low { background: rgba(220,50,50,.5) !important; }
 
     .logo { font-size: 2rem; }
 
@@ -41,23 +42,11 @@
     .full { grid-column: 1 / -1; }
 
     label { display: block; font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 5px; }
-    input, select {
+    input {
       width: 100%; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 8px;
       font-size: 0.93rem; transition: border-color .2s;
     }
-    input:focus, select:focus { outline: none; border-color: #1a73e8; }
-
-    .delivery-toggle {
-      display: flex; gap: 12px; margin-top: 4px;
-    }
-    .toggle-btn {
-      flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px;
-      background: white; cursor: pointer; font-size: 0.9rem; font-weight: 500;
-      transition: all .2s; text-align: center;
-    }
-    .toggle-btn.active { border-color: #1a73e8; background: #e8f0fd; color: #1a73e8; }
-
-    #email-field { display: none; margin-top: 12px; }
+    input:focus { outline: none; border-color: #1a73e8; }
 
     .btn-search {
       width: 100%; padding: 13px; background: #1a73e8; color: white;
@@ -81,18 +70,38 @@
     .contact-card {
       border: 1.5px solid #e8eaf0; border-radius: 10px;
       padding: 18px 20px; margin-bottom: 12px;
-      display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px;
-      transition: box-shadow .15s;
+      transition: box-shadow .15s; background: white;
     }
     .contact-card:hover { box-shadow: 0 3px 14px rgba(0,0,0,.1); }
 
-    .contact-name { font-size: 1.05rem; font-weight: 700; color: #1a1a2e; grid-column: 1/-1; }
+    .contact-name { font-size: 1.05rem; font-weight: 700; color: #1a1a2e; margin-bottom: 12px; }
+
+    .contact-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; }
     .contact-field { font-size: 0.87rem; color: #555; }
     .contact-field span { color: #222; font-weight: 500; }
     .contact-field a { color: #1a73e8; text-decoration: none; }
     .contact-field a:hover { text-decoration: underline; }
 
-    .email-hidden { color: #aaa; font-style: italic; }
+    .reveal-row {
+      display: flex; gap: 10px; margin-top: 14px; padding-top: 14px;
+      border-top: 1px solid #f0f0f0;
+    }
+    .btn-reveal {
+      padding: 7px 16px; border-radius: 7px; border: 1.5px solid #1a73e8;
+      background: white; color: #1a73e8; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 6px;
+    }
+    .btn-reveal:hover { background: #1a73e8; color: white; }
+    .btn-reveal:disabled { border-color: #ccc; color: #aaa; cursor: not-allowed; background: white; }
+    .btn-reveal.revealed { border-color: #2e7d32; color: #2e7d32; cursor: default; }
+    .btn-reveal.revealed:hover { background: white; color: #2e7d32; }
+
+    .spinner-sm {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: 50%; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .alert {
       padding: 14px 18px; border-radius: 8px; margin-bottom: 16px; font-size: 0.92rem;
@@ -107,13 +116,9 @@
       border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle;
       margin-right: 8px;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
     .no-results { text-align: center; color: #888; padding: 32px; font-size: 0.95rem; }
-
-    .tip {
-      font-size: 0.8rem; color: #888; margin-top: 6px; line-height: 1.4;
-    }
+    .tip { font-size: 0.8rem; color: #888; margin-top: 6px; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -126,7 +131,7 @@
   </div>
   <div class="credits-bar" id="credits-bar" style="display:none">
     <strong id="credits-remaining">—</strong>
-    email credits remaining
+    credits remaining
   </div>
 </header>
 
@@ -161,7 +166,6 @@
         <input type="text" id="industry" placeholder="e.g. SaaS, healthcare, logistics">
       </div>
 
-
     </div>
 
     <button class="btn-search" id="search-btn" onclick="doSearch()">Search Apollo</button>
@@ -173,15 +177,30 @@
       <h2 style="color:#333;font-size:1.1rem">Results</h2>
       <span class="badge" id="count-badge">0 found</span>
     </div>
+    <div id="alerts"></div>
     <div id="results-body"></div>
   </div>
 </main>
 
 <script>
+  function updateCredits(credits) {
+    if (!credits || credits.remaining == null) return;
+    const bar = document.getElementById('credits-bar');
+    const rem = credits.remaining;
+    bar.style.display = 'block';
+    bar.classList.toggle('credits-low', rem <= 5);
+    document.getElementById('credits-remaining').textContent = rem;
+    if (rem <= 5) {
+      document.getElementById('alerts').innerHTML =
+        `<div class="alert alert-info">⚠️ Only ${rem} credit(s) remaining — use reveals carefully.</div>`;
+    }
+  }
+
   async function doSearch() {
     const btn = document.getElementById('search-btn');
     const resultsDiv = document.getElementById('results');
     const body = document.getElementById('results-body');
+    const alerts = document.getElementById('alerts');
 
     const payload = {
       name:     document.getElementById('name').value.trim(),
@@ -191,8 +210,8 @@
       industry: document.getElementById('industry').value.trim(),
     };
 
-    if (!payload.name && !payload.company && !payload.title && !payload.location && !payload.industry) {
-      showAlert(body, 'Please fill in at least one search field.', 'error');
+    if (!Object.values(payload).some(v => v)) {
+      alerts.innerHTML = '<div class="alert alert-error">Please fill in at least one search field.</div>';
       resultsDiv.style.display = 'block';
       return;
     }
@@ -201,6 +220,7 @@
     btn.innerHTML = '<span class="spinner"></span>Searching Apollo...';
     resultsDiv.style.display = 'none';
     body.innerHTML = '';
+    alerts.innerHTML = '';
 
     try {
       const resp = await fetch('/search', {
@@ -213,25 +233,13 @@
       resultsDiv.style.display = 'block';
 
       if (!resp.ok || data.error) {
-        showAlert(body, data.error || 'An error occurred.', 'error');
+        alerts.innerHTML = `<div class="alert alert-error">${data.error || 'An error occurred.'}</div>`;
         document.getElementById('count-badge').textContent = 'Error';
         return;
       }
 
       document.getElementById('count-badge').textContent = `${data.count} found`;
-
-      // Update credits display
-      if (data.credits && data.credits.remaining != null) {
-        const bar = document.getElementById('credits-bar');
-        const rem = data.credits.remaining;
-        bar.style.display = 'block';
-        bar.style.background = rem <= 5 ? 'rgba(220,50,50,.5)' : 'rgba(255,255,255,.15)';
-        document.getElementById('credits-remaining').textContent = rem;
-        if (rem <= 5) {
-          showAlert(body, `⚠️ Warning: only ${rem} email credit(s) remaining on Apollo. Contact info may be limited.`, 'info');
-          return;
-        }
-      }
+      updateCredits(data.credits);
 
       if (data.count === 0) {
         body.innerHTML = '<div class="no-results">No contacts found — try broadening your search criteria.</div>';
@@ -239,28 +247,48 @@
       }
 
       data.contacts.forEach(c => {
-        const emailHtml = c.email.includes('Not revealed')
-          ? `<span class="email-hidden">${c.email}</span>`
-          : `<a href="mailto:${c.email}">${c.email}</a>`;
-
         const linkedinHtml = c.linkedin
-          ? `<a href="${c.linkedin}" target="_blank">View Profile →</a>`
-          : '—';
+          ? `<a href="${c.linkedin}" target="_blank">View Profile →</a>` : '—';
+
+        const emailDisplay = c.email_revealed
+          ? `<a href="mailto:${c.email}">${c.email}</a>` : '<em style="color:#aaa">Not yet revealed</em>';
+
+        const phoneDisplay = c.phone_revealed
+          ? `<a href="tel:${c.phone}">${c.phone}</a>` : '<em style="color:#aaa">Not yet revealed</em>';
+
+        const emailBtnLabel = c.email_revealed ? '✓ Email revealed' : '✉️ Reveal Email (1 credit)';
+        const phoneBtnLabel = c.phone_revealed ? '✓ Phone revealed' : '📞 Reveal Phone (1 credit)';
 
         body.innerHTML += `
-          <div class="contact-card">
+          <div class="contact-card" id="card-${c.id}">
             <div class="contact-name">${c.name || '(No name)'}</div>
-            <div class="contact-field">🏷️ Title: <span>${c.title}</span></div>
-            <div class="contact-field">🏢 Company: <span>${c.company}</span></div>
-            <div class="contact-field">📍 Location: <span>${c.location || '—'}</span></div>
-            <div class="contact-field">✉️ Email: <span>${emailHtml}</span></div>
-            <div class="contact-field">🔗 LinkedIn: <span>${linkedinHtml}</span></div>
-            ${c.phone ? `<div class="contact-field">📞 Phone: <span>${c.phone}</span></div>` : ''}
+            <div class="contact-fields">
+              <div class="contact-field">🏷️ Title: <span>${c.title}</span></div>
+              <div class="contact-field">🏢 Company: <span>${c.company}</span></div>
+              <div class="contact-field">📍 Location: <span>${c.location || '—'}</span></div>
+              <div class="contact-field">🔗 LinkedIn: <span>${linkedinHtml}</span></div>
+              <div class="contact-field" id="email-field-${c.id}">✉️ Email: <span>${emailDisplay}</span></div>
+              <div class="contact-field" id="phone-field-${c.id}">📞 Phone: <span>${phoneDisplay}</span></div>
+            </div>
+            <div class="reveal-row">
+              <button class="btn-reveal ${c.email_revealed ? 'revealed' : ''}"
+                id="btn-email-${c.id}"
+                onclick="reveal('${c.id}', 'email')"
+                ${c.email_revealed ? 'disabled' : ''}>
+                ${emailBtnLabel}
+              </button>
+              <button class="btn-reveal ${c.phone_revealed ? 'revealed' : ''}"
+                id="btn-phone-${c.id}"
+                onclick="reveal('${c.id}', 'phone')"
+                ${c.phone_revealed ? 'disabled' : ''}>
+                ${phoneBtnLabel}
+              </button>
+            </div>
           </div>`;
       });
 
     } catch (e) {
-      showAlert(body, 'Network error — is the Flask server running?', 'error');
+      alerts.innerHTML = '<div class="alert alert-error">Network error — please try again.</div>';
       resultsDiv.style.display = 'block';
     } finally {
       btn.disabled = false;
@@ -268,11 +296,52 @@
     }
   }
 
-  function showAlert(container, msg, type) {
-    container.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  async function reveal(personId, type) {
+    const btn = document.getElementById(`btn-${type}-${personId}`);
+    const field = document.getElementById(`${type}-field-${personId}`);
+    const icon = type === 'email' ? '✉️' : '📞';
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-sm"></span> Revealing...`;
+
+    try {
+      const resp = await fetch('/reveal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: personId, type }),
+      });
+
+      const data = await resp.json();
+
+      if (data.error) {
+        btn.disabled = false;
+        btn.innerHTML = type === 'email' ? '✉️ Reveal Email (1 credit)' : '📞 Reveal Phone (1 credit)';
+        document.getElementById('alerts').innerHTML =
+          `<div class="alert alert-error">Could not reveal: ${data.error}</div>`;
+        return;
+      }
+
+      updateCredits(data.credits);
+
+      const value = type === 'email' ? data.email : data.phone;
+      if (value) {
+        const link = type === 'email'
+          ? `<a href="mailto:${value}">${value}</a>`
+          : `<a href="tel:${value}">${value}</a>`;
+        field.innerHTML = `${icon} ${type === 'email' ? 'Email' : 'Phone'}: <span>${link}</span>`;
+        btn.classList.add('revealed');
+        btn.innerHTML = `✓ ${type === 'email' ? 'Email' : 'Phone'} revealed`;
+      } else {
+        field.innerHTML = `${icon} ${type === 'email' ? 'Email' : 'Phone'}: <span><em style="color:#aaa">Not available on this plan</em></span>`;
+        btn.innerHTML = `— Not available`;
+      }
+
+    } catch (e) {
+      btn.disabled = false;
+      btn.innerHTML = type === 'email' ? '✉️ Reveal Email (1 credit)' : '📞 Reveal Phone (1 credit)';
+    }
   }
 
-  // Allow Enter key to trigger search
   document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && document.activeElement.tagName === 'INPUT') doSearch();
   });
