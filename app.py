@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 APOLLO_API_KEY  = os.getenv("APOLLO_API_KEY") or "qCRth4TImuo1MbHQeQCd1A"
 SUPABASE_URL    = os.getenv("SUPABASE_URL") or "https://viahldmykvnbdfmbwqjy.supabase.co"
-SUPABASE_KEY    = os.getenv("SUPABASE_KEY") or "sb_publishable_oAZHo8jh8UNqV-s0OBLnQQ__jLJxwf-"
+SUPABASE_KEY    = os.getenv("SUPABASE_KEY")
 
 APOLLO_SEARCH_URL = "https://api.apollo.io/v1/mixed_people/api_search"
 APOLLO_ENRICH_URL = "https://api.apollo.io/v1/people/match"
