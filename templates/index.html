@@ -308,7 +308,12 @@
       const resp = await fetch('/reveal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: personId, type }),
+        body: JSON.stringify({
+        id: personId,
+        type,
+        contact_name:    document.querySelector(`#card-${personId} .contact-name`)?.textContent || '',
+        contact_company: document.querySelector(`#card-${personId} .contact-fields .contact-field:nth-child(2) span`)?.textContent || '',
+      }),
       });
 
       const data = await resp.json();

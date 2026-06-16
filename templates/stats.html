@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usage Stats · Apollo Finder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white; padding: 24px 32px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 600; }
+    header p  { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
+    .back-btn {
+      margin-left: auto; background: rgba(255,255,255,.2); border: none;
+      color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer;
+      font-size: 0.9rem; text-decoration: none;
+    }
+    .back-btn:hover { background: rgba(255,255,255,.3); }
+
+    main { max-width: 1000px; margin: 36px auto; padding: 0 16px 60px; }
+
+    .summary-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px;
+    }
+    .stat-card {
+      background: white; border-radius: 12px; padding: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08); text-align: center;
+    }
+    .stat-card .number { font-size: 2.2rem; font-weight: 700; color: #1a73e8; }
+    .stat-card .label  { font-size: 0.85rem; color: #888; margin-top: 4px; }
+
+    .card {
+      background: white; border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08); padding: 28px; margin-bottom: 24px;
+    }
+    .card h2 { font-size: 1.05rem; color: #1a73e8; margin-bottom: 18px; font-weight: 600; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+    th {
+      text-align: left; padding: 10px 12px; background: #f8f9fa;
+      color: #555; font-weight: 600; border-bottom: 2px solid #e8eaf0;
+    }
+    td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; color: #333; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafbff; }
+
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 0.78rem; font-weight: 600;
+    }
+    .badge-search { background: #e8f0fd; color: #1a73e8; }
+    .badge-reveal-email { background: #e8f5e9; color: #2e7d32; }
+    .badge-reveal-phone { background: #fff3e0; color: #e65100; }
+
+    .empty { text-align: center; color: #aaa; padding: 32px; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:2rem">📊</div>
+  <div>
+    <h1>Usage Dashboard</h1>
+    <p>Apollo Contact Finder · LumenServe Sales Team</p>
+  </div>
+  <a href="/" class="back-btn">← Back to Search</a>
+</header>
+
+<main>
+
+  {% set searches = logs | selectattr('action', 'equalto', 'search') | list %}
+  {% set reveals  = logs | selectattr('action', 'equalto', 'reveal') | list %}
+  {% set email_reveals = reveals | selectattr('reveal_type', 'equalto', 'email') | list %}
+  {% set phone_reveals = reveals | selectattr('reveal_type', 'equalto', 'phone') | list %}
+
+  <div class="summary-grid">
+    <div class="stat-card">
+      <div class="number">{{ searches | length }}</div>
+      <div class="label">Total Searches</div>
+    </div>
+    <div class="stat-card">
+      <div class="number">{{ email_reveals | length }}</div>
+      <div class="label">Email Reveals</div>
+    </div>
+    <div class="stat-card">
+      <div class="number">{{ phone_reveals | length }}</div>
+      <div class="label">Phone Reveals</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Recent Activity (last 200 events)</h2>
+    {% if logs %}
+    <table>
+      <thead>
+        <tr>
+          <th>Date &amp; Time</th>
+          <th>Action</th>
+          <th>Search Terms</th>
+          <th>Contact</th>
+          <th>Results</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in logs %}
+        <tr>
+          <td style="white-space:nowrap;color:#888">
+            {{ row.created_at[:16].replace('T', ' ') if row.created_at else '—' }}
+          </td>
+          <td>
+            {% if row.action == 'search' %}
+              <span class="badge badge-search">Search</span>
+            {% elif row.reveal_type == 'email' %}
+              <span class="badge badge-reveal-email">Email Reveal</span>
+            {% else %}
+              <span class="badge badge-reveal-phone">Phone Reveal</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.action == 'search' %}
+              {% set terms = [] %}
+              {% if row.search_name %}{% set _ = terms.append('Name: ' ~ row.search_name) %}{% endif %}
+              {% if row.search_company %}{% set _ = terms.append('Company: ' ~ row.search_company) %}{% endif %}
+              {% if row.search_title %}{% set _ = terms.append('Title: ' ~ row.search_title) %}{% endif %}
+              {% if row.search_location %}{% set _ = terms.append('Location: ' ~ row.search_location) %}{% endif %}
+              {% if row.search_industry %}{% set _ = terms.append('Industry: ' ~ row.search_industry) %}{% endif %}
+              {{ terms | join(', ') or '—' }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if row.contact_name %}
+              {{ row.contact_name }}{% if row.contact_company %} · {{ row.contact_company }}{% endif %}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if row.results_count is not none %}
+              {{ row.results_count }} found
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">No activity yet — searches and reveals will appear here.</div>
+    {% endif %}
+  </div>
+
+</main>
+</body>
+</html>
