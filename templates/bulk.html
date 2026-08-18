@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bulk Search · Apollo Finder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white; padding: 24px 32px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 600; }
+    header p  { font-size: 0.85rem; opacity: 0.8; margin-top: 2px; }
+    .nav-links { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+    .nav-links a {
+      color: white; opacity: .85; font-size: .85rem; text-decoration: none;
+    }
+    .nav-links a:hover { opacity: 1; }
+    .credits-bar {
+      background: rgba(255,255,255,.15); border-radius: 8px;
+      padding: 8px 16px; font-size: 0.82rem; text-align: right; min-width: 140px;
+    }
+    .credits-bar strong { display: block; font-size: 1.1rem; }
+    .credits-low { background: rgba(220,50,50,.5) !important; }
+
+    main { max-width: 1000px; margin: 36px auto; padding: 0 16px 60px; }
+
+    .card {
+      background: white; border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08); padding: 32px; margin-bottom: 24px;
+    }
+    .card h2 { font-size: 1.05rem; color: #1a73e8; margin-bottom: 20px; font-weight: 600; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .full { grid-column: 1 / -1; }
+    label { display: block; font-size: .82rem; font-weight: 600; color: #555; margin-bottom: 5px; }
+    input[type=text] {
+      width: 100%; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+      font-size: .93rem; transition: border-color .2s;
+    }
+    input[type=text]:focus { outline: none; border-color: #1a73e8; }
+    .tip { font-size: .8rem; color: #888; margin-top: 5px; }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2px dashed #c5cae9; border-radius: 10px; padding: 32px;
+      text-align: center; cursor: pointer; transition: all .2s; background: #fafbff;
+    }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: #1a73e8; background: #e8f0fd; }
+    .upload-zone .icon { font-size: 2.5rem; margin-bottom: 8px; }
+    .upload-zone p { color: #555; font-size: .92rem; }
+    .upload-zone small { color: #aaa; font-size: .8rem; }
+    .file-chosen { color: #2e7d32; font-weight: 600; margin-top: 8px; font-size: .88rem; }
+    #file-input { display: none; }
+
+    .btn-search {
+      width: 100%; padding: 13px; background: #1a73e8; color: white;
+      border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;
+      cursor: pointer; margin-top: 20px; transition: background .2s;
+    }
+    .btn-search:hover { background: #1558c0; }
+    .btn-search:disabled { background: #aaa; cursor: not-allowed; }
+
+    /* Progress */
+    .progress-bar-wrap {
+      background: #e8eaf0; border-radius: 8px; height: 8px; margin: 16px 0; overflow: hidden;
+    }
+    .progress-bar { background: #1a73e8; height: 100%; width: 0; transition: width .3s; }
+
+    /* Results */
+    #results { display: none; }
+    .result-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+    }
+    .badge { background: #e8f5e9; color: #2e7d32; font-weight: 600; padding: 4px 12px; border-radius: 20px; font-size: .82rem; }
+
+    .reveal-bar {
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+      background: #e8f0fd; border-radius: 10px; padding: 14px 18px; margin-bottom: 18px;
+    }
+    .reveal-bar span { font-size: .9rem; color: #1a73e8; font-weight: 600; }
+    .btn-reveal-all {
+      padding: 9px 20px; background: #1a73e8; color: white; border: none;
+      border-radius: 8px; font-size: .88rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-reveal-all:hover { background: #1558c0; }
+    .btn-reveal-all:disabled { background: #aaa; cursor: not-allowed; }
+    .reveal-type-toggle { display: flex; gap: 8px; }
+    .toggle-pill {
+      padding: 6px 14px; border-radius: 20px; border: 1.5px solid #1a73e8;
+      background: white; color: #1a73e8; font-size: .82rem; font-weight: 600; cursor: pointer;
+    }
+    .toggle-pill.active { background: #1a73e8; color: white; }
+
+    /* Company group */
+    .company-group { margin-bottom: 20px; }
+    .company-label {
+      font-size: .78rem; font-weight: 700; color: #888; text-transform: uppercase;
+      letter-spacing: .05em; margin-bottom: 8px; padding: 0 4px;
+    }
+
+    .contact-card {
+      border: 1.5px solid #e8eaf0; border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 8px; background: white;
+      display: flex; gap: 16px; align-items: flex-start; transition: box-shadow .15s;
+    }
+    .contact-card:hover { box-shadow: 0 3px 14px rgba(0,0,0,.09); }
+    .contact-card.selected { border-color: #1a73e8; background: #f0f5ff; }
+
+    .contact-check { margin-top: 3px; width: 18px; height: 18px; cursor: pointer; accent-color: #1a73e8; flex-shrink: 0; }
+    .contact-body { flex: 1; }
+    .contact-name { font-size: 1rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+    .contact-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 20px; }
+    .contact-field { font-size: .85rem; color: #555; }
+    .contact-field span { color: #222; font-weight: 500; }
+    .contact-field a { color: #1a73e8; text-decoration: none; }
+    .contact-field a:hover { text-decoration: underline; }
+    .revealed-value { color: #2e7d32 !important; font-weight: 600 !important; }
+    .not-available { color: #aaa !important; font-style: italic; }
+
+    .alert { padding: 14px 18px; border-radius: 8px; margin-bottom: 16px; font-size: .92rem; }
+    .alert-error { background: #fce4ec; color: #c62828; border: 1px solid #ef9a9a; }
+    .alert-info  { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 3px solid rgba(255,255,255,.4); border-top-color: white;
+      border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 8px;
+    }
+    .spinner-sm {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid currentColor; border-top-color: transparent;
+      border-radius: 50%; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .no-results { text-align: center; color: #888; padding: 32px; font-size: .95rem; }
+
+    .select-all-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: .85rem; color: #555; cursor: pointer; }
+    .select-all-row input { width: 16px; height: 16px; accent-color: #1a73e8; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:2rem">📋</div>
+  <div>
+    <h1>Bulk Contact Search</h1>
+    <p>Upload a company list · Apollo Contact Finder · LumenServe</p>
+  </div>
+  <div class="nav-links">
+    <a href="/">🔭 Single Search</a>
+    <a href="/stats">📊 Stats</a>
+    <div class="credits-bar" id="credits-bar" style="display:none">
+      <strong id="credits-remaining">—</strong>
+      credits remaining
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Upload Your Company List</h2>
+    <div class="grid">
+
+      <div class="full">
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+          <div class="icon">📁</div>
+          <p>Click to upload or drag &amp; drop your file here</p>
+          <small>Excel (.xlsx) or CSV · One company name per row · First column = Company Name</small>
+          <div class="file-chosen" id="file-chosen" style="display:none"></div>
+        </div>
+        <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
+      </div>
+
+      <div>
+        <label>Job Title(s) to Search</label>
+        <input type="text" id="titles" placeholder="e.g. General Manager, VP Engineering">
+        <div class="tip">Separate multiple titles with commas — applied to every company</div>
+      </div>
+
+      <div>
+        <label>Location <span style="font-weight:400;color:#aaa">(optional)</span></label>
+        <input type="text" id="location" placeholder="e.g. Texas, New York">
+      </div>
+
+    </div>
+
+    <div id="alerts-top"></div>
+    <button class="btn-search" id="search-btn" onclick="doSearch()">Run Bulk Search</button>
+    <div id="progress-wrap" style="display:none">
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+      <div style="font-size:.85rem;color:#888;text-align:center" id="progress-label">Searching...</div>
+    </div>
+  </div>
+
+  <div id="results">
+    <div class="result-header">
+      <div>
+        <h2 style="color:#333;font-size:1.1rem">Results</h2>
+        <div style="font-size:.83rem;color:#888;margin-top:3px" id="result-sub"></div>
+      </div>
+      <span class="badge" id="count-badge">0 found</span>
+    </div>
+
+    <div id="alerts-results"></div>
+
+    <div class="reveal-bar" id="reveal-bar" style="display:none">
+      <span id="selected-count">0 selected</span>
+      <div class="reveal-type-toggle">
+        <button class="toggle-pill active" id="pill-email" onclick="setRevealType('email')">✉️ Email</button>
+        <button class="toggle-pill" id="pill-phone" onclick="setRevealType('phone')">📞 Phone</button>
+      </div>
+      <button class="btn-reveal-all" id="btn-reveal-all" onclick="revealSelected()">Reveal Selected (uses credits)</button>
+    </div>
+
+    <label class="select-all-row" id="select-all-row" style="display:none">
+      <input type="checkbox" id="select-all" onchange="toggleAll(this.checked)"> Select / Deselect All
+    </label>
+
+    <div id="results-body"></div>
+  </div>
+</main>
+
+<script>
+  let revealType = 'email';
+  let allContacts = [];
+
+  // Drag and drop
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) setFile(f);
+  });
+  document.getElementById('file-input').addEventListener('change', e => {
+    if (e.target.files[0]) setFile(e.target.files[0]);
+  });
+
+  function setFile(f) {
+    document.getElementById('file-input')._file = f;
+    const el = document.getElementById('file-chosen');
+    el.textContent = `✓ ${f.name}`;
+    el.style.display = 'block';
+  }
+
+  function setRevealType(type) {
+    revealType = type;
+    document.getElementById('pill-email').classList.toggle('active', type === 'email');
+    document.getElementById('pill-phone').classList.toggle('active', type === 'phone');
+  }
+
+  function updateCredits(credits) {
+    if (!credits || credits.remaining == null) return;
+    const bar = document.getElementById('credits-bar');
+    bar.style.display = 'block';
+    bar.classList.toggle('credits-low', credits.remaining <= 5);
+    document.getElementById('credits-remaining').textContent = credits.remaining;
+  }
+
+  function updateSelectedCount() {
+    const checked = document.querySelectorAll('.contact-check:checked').length;
+    document.getElementById('selected-count').textContent = `${checked} selected`;
+    document.getElementById('reveal-bar').style.display = checked > 0 ? 'flex' : 'none';
+    document.getElementById('btn-reveal-all').textContent =
+      `Reveal ${checked} ${revealType === 'email' ? 'Email' : 'Phone'}${checked !== 1 ? 's' : ''} (uses credits)`;
+  }
+
+  function toggleAll(checked) {
+    document.querySelectorAll('.contact-check').forEach(cb => {
+      cb.checked = checked;
+      cb.closest('.contact-card').classList.toggle('selected', checked);
+    });
+    updateSelectedCount();
+  }
+
+  async function doSearch() {
+    const fileInput = document.getElementById('file-input');
+    const file = fileInput._file || (fileInput.files && fileInput.files[0]);
+    const titles   = document.getElementById('titles').value.trim();
+    const location = document.getElementById('location').value.trim();
+    const alertsTop = document.getElementById('alerts-top');
+
+    alertsTop.innerHTML = '';
+    if (!file) { alertsTop.innerHTML = '<div class="alert alert-error">Please upload a company list file.</div>'; return; }
+    if (!titles) { alertsTop.innerHTML = '<div class="alert alert-error">Please enter at least one job title.</div>'; return; }
+
+    const btn = document.getElementById('search-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Searching...';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('progress-wrap').style.display = 'block';
+    document.getElementById('progress-bar').style.width = '0%';
+    document.getElementById('progress-label').textContent = 'Uploading and searching...';
+
+    // Animate progress bar while waiting
+    let pct = 0;
+    const timer = setInterval(() => {
+      pct = Math.min(pct + 2, 90);
+      document.getElementById('progress-bar').style.width = pct + '%';
+    }, 500);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('titles', titles);
+    formData.append('location', location);
+
+    try {
+      const resp = await fetch('/bulk-search', { method: 'POST', body: formData });
+      clearInterval(timer);
+      document.getElementById('progress-bar').style.width = '100%';
+
+      const data = await resp.json();
+      document.getElementById('progress-wrap').style.display = 'none';
+      document.getElementById('results').style.display = 'block';
+
+      if (!resp.ok || data.error) {
+        document.getElementById('alerts-results').innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+        document.getElementById('count-badge').textContent = 'Error';
+        return;
+      }
+
+      allContacts = data.contacts;
+      document.getElementById('count-badge').textContent = `${data.count} contacts found`;
+      document.getElementById('result-sub').textContent =
+        `Searched ${data.companies} companies · ${data.count} contacts returned`;
+      document.getElementById('select-all-row').style.display = data.count > 0 ? 'flex' : 'none';
+
+      renderContacts(data.contacts);
+
+    } catch (e) {
+      clearInterval(timer);
+      document.getElementById('progress-wrap').style.display = 'none';
+      document.getElementById('alerts-results').innerHTML = '<div class="alert alert-error">Network error — please try again.</div>';
+      document.getElementById('results').style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Run Bulk Search';
+    }
+  }
+
+  function renderContacts(contacts) {
+    const body = document.getElementById('results-body');
+    body.innerHTML = '';
+
+    if (!contacts.length) {
+      body.innerHTML = '<div class="no-results">No contacts found — try different titles or a broader location.</div>';
+      return;
+    }
+
+    // Group by searched_company
+    const groups = {};
+    contacts.forEach(c => {
+      const key = c.searched_company || c.company || '—';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(c);
+    });
+
+    Object.entries(groups).forEach(([company, contacts]) => {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'company-group';
+      groupEl.innerHTML = `<div class="company-label">🏢 ${company} — ${contacts.length} contact${contacts.length !== 1 ? 's' : ''}</div>`;
+
+      contacts.forEach(c => {
+        const linkedinHtml = c.linkedin ? `<a href="${c.linkedin}" target="_blank">View →</a>` : '—';
+        const card = document.createElement('div');
+        card.className = 'contact-card';
+        card.id = `card-${c.id}`;
+        card.innerHTML = `
+          <input type="checkbox" class="contact-check" onchange="toggleCard(this)" data-id="${c.id}">
+          <div class="contact-body">
+            <div class="contact-name">${c.name || '(No name)'}</div>
+            <div class="contact-fields">
+              <div class="contact-field">🏷️ Title: <span>${c.title}</span></div>
+              <div class="contact-field">🏢 Company: <span>${c.company}</span></div>
+              <div class="contact-field">📍 Location: <span>${c.location || '—'}</span></div>
+              <div class="contact-field">🔗 LinkedIn: <span>${linkedinHtml}</span></div>
+              <div class="contact-field" id="email-field-${c.id}">✉️ Email: <span class="${c.email_revealed ? '' : 'not-available'}">${c.email_revealed ? `<a href="mailto:${c.email}">${c.email}</a>` : 'Not yet revealed'}</span></div>
+              <div class="contact-field" id="phone-field-${c.id}">📞 Phone: <span class="${c.phone_revealed ? '' : 'not-available'}">${c.phone_revealed ? c.phone : 'Not yet revealed'}</span></div>
+            </div>
+          </div>`;
+        groupEl.appendChild(card);
+      });
+
+      body.appendChild(groupEl);
+    });
+  }
+
+  function toggleCard(cb) {
+    cb.closest('.contact-card').classList.toggle('selected', cb.checked);
+    updateSelectedCount();
+  }
+
+  async function revealSelected() {
+    const checked = [...document.querySelectorAll('.contact-check:checked')];
+    if (!checked.length) return;
+
+    const btn = document.getElementById('btn-reveal-all');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-sm"></span> Revealing ${checked.length}...`;
+
+    let done = 0;
+    for (const cb of checked) {
+      const personId = cb.dataset.id;
+      const card = cb.closest('.contact-card');
+      const nameEl = card.querySelector('.contact-name');
+      const companyEl = card.querySelector('.contact-field:nth-child(2) span');
+
+      try {
+        const resp = await fetch('/reveal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: personId,
+            type: revealType,
+            contact_name: nameEl?.textContent || '',
+            contact_company: companyEl?.textContent || '',
+          }),
+        });
+        const data = await resp.json();
+        updateCredits(data.credits);
+
+        const value = revealType === 'email' ? data.email : data.phone;
+        const field = document.getElementById(`${revealType}-field-${personId}`);
+        if (field) {
+          if (value) {
+            const link = revealType === 'email'
+              ? `<a href="mailto:${value}" class="revealed-value">${value}</a>`
+              : `<span class="revealed-value">${value}</span>`;
+            field.querySelector('span').innerHTML = link;
+            field.querySelector('span').className = '';
+          } else {
+            field.querySelector('span').textContent = 'Not available';
+            field.querySelector('span').className = 'not-available';
+          }
+        }
+
+        cb.checked = false;
+        card.classList.remove('selected');
+      } catch (e) {
+        // skip failed reveals silently
+      }
+
+      done++;
+      btn.innerHTML = `<span class="spinner-sm"></span> Revealing... ${done}/${checked.length}`;
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Reveal Selected (uses credits)';
+    updateSelectedCount();
+    document.getElementById('select-all').checked = false;
+  }
+</script>
+
+</body>
+</html>

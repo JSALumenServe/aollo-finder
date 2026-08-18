@@ -1,5 +1,9 @@
 import os
+import csv
+import io
+import time
 import requests
+import openpyxl
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from supabase import create_client
@@ -8,14 +12,19 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(__name__)
 
-APOLLO_API_KEY  = os.getenv("APOLLO_API_KEY") or "qCRth4TImuo1MbHQeQCd1A"
-SUPABASE_URL    = os.getenv("SUPABASE_URL") or "https://viahldmykvnbdfmbwqjy.supabase.co"
-SUPABASE_KEY    = os.getenv("SUPABASE_KEY")
+APOLLO_API_KEY = os.getenv("APOLLO_API_KEY")
+SUPABASE_URL   = os.getenv("SUPABASE_URL")
+SUPABASE_KEY   = os.getenv("SUPABASE_KEY")
 
 APOLLO_SEARCH_URL = "https://api.apollo.io/v1/mixed_people/api_search"
 APOLLO_ENRICH_URL = "https://api.apollo.io/v1/people/match"
 
-db = create_client(SUPABASE_URL, SUPABASE_KEY)
+db = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        db = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        app.logger.error(f"Supabase init failed: {e}")
 
 
 def apollo_headers():
@@ -23,18 +32,20 @@ def apollo_headers():
 
 
 def log_usage(action: str, data: dict):
+    if db is None:
+        return
     try:
         db.table("usage_log").insert({
-            "action":           action,
-            "search_name":      data.get("search_name"),
-            "search_company":   data.get("search_company"),
-            "search_title":     data.get("search_title"),
-            "search_location":  data.get("search_location"),
-            "search_industry":  data.get("search_industry"),
-            "results_count":    data.get("results_count"),
-            "reveal_type":      data.get("reveal_type"),
-            "contact_name":     data.get("contact_name"),
-            "contact_company":  data.get("contact_company"),
+            "action":          action,
+            "search_name":     data.get("search_name"),
+            "search_company":  data.get("search_company"),
+            "search_title":    data.get("search_title"),
+            "search_location": data.get("search_location"),
+            "search_industry": data.get("search_industry"),
+            "results_count":   data.get("results_count"),
+            "reveal_type":     data.get("reveal_type"),
+            "contact_name":    data.get("contact_name"),
+            "contact_company": data.get("contact_company"),
         }).execute()
     except Exception as e:
         app.logger.error(f"Supabase log error: {e}")
@@ -42,7 +53,6 @@ def log_usage(action: str, data: dict):
 
 def search_apollo(params: dict) -> dict:
     payload = {"page": 1, "per_page": 10}
-
     if params.get("name"):
         payload["q_keywords"] = params["name"]
     if params.get("company"):
@@ -53,7 +63,6 @@ def search_apollo(params: dict) -> dict:
         payload["person_locations"] = [params["location"]]
     if params.get("industry"):
         payload["q_organization_keyword_tags"] = [params["industry"]]
-
     try:
         resp = requests.post(APOLLO_SEARCH_URL, json=payload, headers=apollo_headers(), timeout=15)
         resp.raise_for_status()
@@ -65,7 +74,7 @@ def search_apollo(params: dict) -> dict:
 
 
 def format_contact(person: dict) -> dict:
-    org = person.get("organization") or {}
+    org   = person.get("organization") or {}
     email = person.get("email", "")
     phone = person.get("sanitized_phone", "")
     return {
@@ -82,9 +91,47 @@ def format_contact(person: dict) -> dict:
     }
 
 
+def parse_company_list(file) -> list:
+    """Parse uploaded CSV or Excel and return list of company names."""
+    filename = file.filename.lower()
+    companies = []
+    if filename.endswith(".csv"):
+        content = file.read().decode("utf-8", errors="ignore")
+        reader  = csv.reader(io.StringIO(content))
+        for row in reader:
+            if row and row[0].strip() and row[0].strip().lower() != "company":
+                companies.append(row[0].strip())
+    elif filename.endswith((".xlsx", ".xls")):
+        wb  = openpyxl.load_workbook(file, read_only=True, data_only=True)
+        ws  = wb.active
+        for i, row in enumerate(ws.iter_rows(values_only=True)):
+            if not row or not row[0]:
+                continue
+            val = str(row[0]).strip()
+            if i == 0 and val.lower() in ("company", "company name", "name"):
+                continue
+            if val:
+                companies.append(val)
+    return companies
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/bulk")
+def bulk():
+    return render_template("bulk.html")
+
+
+@app.route("/stats")
+def stats():
+    try:
+        rows = db.table("usage_log").select("*").order("created_at", desc=True).limit(200).execute()
+        return render_template("stats.html", logs=rows.data)
+    except Exception as e:
+        return f"Error loading stats: {e}", 500
 
 
 @app.route("/search", methods=["POST"])
@@ -100,12 +147,11 @@ def search():
     if not any(search_params.values()):
         return jsonify({"error": "Please fill in at least one search field."}), 400
 
-    result = search_apollo(search_params)
-
+    result   = search_apollo(search_params)
     if "error" in result:
         return jsonify(result), 500
 
-    people  = result.get("people", [])
+    people   = result.get("people", [])
     contacts = [format_contact(p) for p in people]
     credits  = {"remaining": result.get("credits_remaining")}
 
@@ -117,15 +163,54 @@ def search():
         "search_industry": search_params["industry"],
         "results_count":   len(contacts),
     })
-
     return jsonify({"contacts": contacts, "count": len(contacts), "credits": credits})
+
+
+@app.route("/bulk-search", methods=["POST"])
+def bulk_search():
+    file     = request.files.get("file")
+    titles   = request.form.get("titles", "").strip()
+    location = request.form.get("location", "").strip()
+
+    if not file or not file.filename:
+        return jsonify({"error": "Please upload a file."}), 400
+    if not titles:
+        return jsonify({"error": "Please enter at least one job title."}), 400
+
+    companies = parse_company_list(file)
+    if not companies:
+        return jsonify({"error": "No company names found in the file."}), 400
+
+    all_contacts = []
+    for company in companies[:100]:  # cap at 100 companies per batch
+        result = search_apollo({"company": company, "title": titles, "location": location})
+        if "error" not in result:
+            people = result.get("people", [])
+            for p in people:
+                c = format_contact(p)
+                c["searched_company"] = company  # the company we searched for
+                all_contacts.append(c)
+        time.sleep(0.3)  # avoid Apollo rate limits
+
+    log_usage("bulk_search", {
+        "search_company": f"{len(companies)} companies",
+        "search_title":   titles,
+        "search_location": location,
+        "results_count":  len(all_contacts),
+    })
+
+    return jsonify({
+        "contacts":   all_contacts,
+        "count":      len(all_contacts),
+        "companies":  len(companies),
+    })
 
 
 @app.route("/reveal", methods=["POST"])
 def reveal():
-    data = request.get_json()
-    person_id   = data.get("id", "").strip()
-    reveal_type = data.get("type", "email")
+    data            = request.get_json()
+    person_id       = data.get("id", "").strip()
+    reveal_type     = data.get("type", "email")
     contact_name    = data.get("contact_name", "")
     contact_company = data.get("contact_company", "")
 
@@ -133,17 +218,15 @@ def reveal():
         return jsonify({"error": "No contact ID provided."}), 400
 
     payload = {
-        "id": person_id,
+        "id":                    person_id,
         "reveal_personal_emails": reveal_type == "email",
         "reveal_phone_number":    reveal_type == "phone",
     }
-
     try:
         resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)
         resp.raise_for_status()
-        result = resp.json()
-        person = result.get("person", {})
-
+        result  = resp.json()
+        person  = result.get("person", {})
         email   = person.get("email", "")
         phone   = person.get("sanitized_phone", "")
         credits = {"remaining": result.get("credits_remaining")}
@@ -153,7 +236,6 @@ def reveal():
             "contact_name":    contact_name,
             "contact_company": contact_company,
         })
-
         return jsonify({
             "email":   email if "@" in (email or "") else None,
             "phone":   phone or None,
@@ -165,14 +247,5 @@ def reveal():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/stats")
-def stats():
-    try:
-        rows = db.table("usage_log").select("*").order("created_at", desc=True).limit(200).execute()
-        return render_template("stats.html", logs=rows.data)
-    except Exception as e:
-        return f"Error loading stats: {e}", 500
-
-
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
