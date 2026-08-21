@@ -75,9 +75,15 @@ def search_apollo(params: dict) -> dict:
 
 
 def format_contact(person: dict) -> dict:
-    org   = person.get("organization") or {}
-    email = person.get("email", "")
-    phone = person.get("sanitized_phone", "")
+    org          = person.get("organization") or {}
+    email        = person.get("email", "")
+    phone        = person.get("sanitized_phone", "")
+    email_status = person.get("email_status", "")
+    phone_nums   = person.get("phone_numbers") or []
+    # has_email: Apollo confirmed an email exists (may not be revealed yet)
+    has_email    = bool(email_status and email_status not in ("invalid", "no_email")) or bool(email and "@" in email)
+    # has_phone: Apollo has at least one phone number on file
+    has_phone    = bool(phone_nums) or bool(phone)
     return {
         "id":             person.get("id", ""),
         "name":           f"{person.get('first_name', '')} {person.get('last_name', '')}".strip(),
@@ -85,8 +91,10 @@ def format_contact(person: dict) -> dict:
         "company":        person.get("organization_name") or org.get("name", "—"),
         "email":          email,
         "email_revealed": bool(email and "@" in email),
+        "has_email":      has_email,
         "phone":          phone,
         "phone_revealed": bool(phone),
+        "has_phone":      has_phone,
         "linkedin":       person.get("linkedin_url", ""),
         "location":       ", ".join(filter(None, [person.get("city", ""), person.get("state", "")])),
     }
