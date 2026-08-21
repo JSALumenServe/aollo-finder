@@ -18,6 +18,7 @@ SUPABASE_KEY   = os.getenv("SUPABASE_KEY")
 
 APOLLO_SEARCH_URL = "https://api.apollo.io/v1/mixed_people/api_search"
 APOLLO_ENRICH_URL = "https://api.apollo.io/v1/people/match"
+APP_BASE_URL      = "https://apollo-finder-ls.onrender.com"
 
 db = None
 if SUPABASE_URL and SUPABASE_KEY:
@@ -217,33 +218,79 @@ def reveal():
     if not person_id:
         return jsonify({"error": "No contact ID provided."}), 400
 
-    payload = {
-        "id":                    person_id,
-        "reveal_personal_emails": True,
-    }
+    if reveal_type == "phone":
+        # Phone requires async webhook — tell Apollo to POST result back to us
+        payload = {
+            "id":                 person_id,
+            "reveal_phone_number": True,
+            "webhook_url":        f"{APP_BASE_URL}/webhook/phone",
+        }
+        try:
+            resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)
+            resp.raise_for_status()
+            log_usage("reveal", {"reveal_type": "phone", "contact_name": contact_name, "contact_company": contact_company})
+            return jsonify({"queued": True, "person_id": person_id})
+        except requests.exceptions.HTTPError as e:
+            return jsonify({"error": f"Apollo API error: {e.response.status_code} — {e.response.text}"}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # Email — synchronous
+    payload = {"id": person_id, "reveal_personal_emails": True}
     try:
         resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)
         resp.raise_for_status()
         result  = resp.json()
         person  = result.get("person", {})
         email   = person.get("email", "")
-        phone   = person.get("sanitized_phone", "")
         credits = {"remaining": result.get("credits_remaining")}
-
-        log_usage("reveal", {
-            "reveal_type":     reveal_type,
-            "contact_name":    contact_name,
-            "contact_company": contact_company,
-        })
-        return jsonify({
-            "email":   email if "@" in (email or "") else None,
-            "phone":   phone or None,
-            "credits": credits,
-        })
+        log_usage("reveal", {"reveal_type": "email", "contact_name": contact_name, "contact_company": contact_company})
+        return jsonify({"email": email if "@" in (email or "") else None, "credits": credits})
     except requests.exceptions.HTTPError as e:
         return jsonify({"error": f"Apollo API error: {e.response.status_code} — {e.response.text}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/webhook/phone", methods=["POST"])
+def webhook_phone():
+    """Apollo posts phone results here asynchronously."""
+    payload = request.get_json(silent=True) or {}
+    people  = []
+    if payload.get("person"):   people.append(payload["person"])
+    if payload.get("people"):   people.extend(payload["people"])
+    if payload.get("contacts"): people.extend(payload["contacts"])
+    if not people and payload.get("id"):
+        people.append(payload)
+
+    for p in people:
+        pid   = p.get("id") or p.get("person_id") or ""
+        phone = ""
+        for pn in (p.get("phone_numbers") or []):
+            phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
+            if phone:
+                break
+        phone = phone or p.get("sanitized_phone") or p.get("mobile_phone") or ""
+        if pid and phone and db is not None:
+            try:
+                db.table("phone_results").upsert({"person_id": pid, "phone": phone}).execute()
+            except Exception as e:
+                app.logger.error(f"Phone webhook store error: {e}")
+
+    return jsonify({"ok": True}), 200
+
+
+@app.route("/phone-result/<person_id>", methods=["GET"])
+def phone_result(person_id):
+    """Frontend polls this to check if Apollo has delivered the phone number yet."""
+    if db is None:
+        return jsonify({"phone": None})
+    try:
+        rows = db.table("phone_results").select("phone").eq("person_id", person_id).execute()
+        phone = rows.data[0]["phone"] if rows.data else None
+        return jsonify({"phone": phone})
+    except Exception as e:
+        return jsonify({"phone": None, "error": str(e)})
 
 
 if __name__ == "__main__":

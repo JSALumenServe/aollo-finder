@@ -210,7 +210,11 @@
 
     <div class="reveal-bar" id="reveal-bar" style="display:none">
       <span id="selected-count">0 selected</span>
-      <button class="btn-reveal-all" id="btn-reveal-all" onclick="revealSelected()">✉️ Reveal Emails for Selected (uses credits)</button>
+      <div class="reveal-type-toggle">
+        <button class="toggle-pill active" id="pill-email" onclick="setRevealType('email')">✉️ Email</button>
+        <button class="toggle-pill" id="pill-phone" onclick="setRevealType('phone')">📞 Phone</button>
+      </div>
+      <button class="btn-reveal-all" id="btn-reveal-all" onclick="revealSelected()">Reveal Selected (uses credits)</button>
     </div>
 
     <label class="select-all-row" id="select-all-row" style="display:none">
@@ -412,27 +416,41 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id: personId,
-            type: revealType,
+            id: personId, type: revealType,
             contact_name: nameEl?.textContent || '',
             contact_company: companyEl?.textContent || '',
           }),
         });
         const data = await resp.json();
-        updateCredits(data.credits);
-
-        const value = revealType === 'email' ? data.email : data.phone;
         const field = document.getElementById(`${revealType}-field-${personId}`);
-        if (field) {
-          if (value) {
-            const link = revealType === 'email'
-              ? `<a href="mailto:${value}" class="revealed-value">${value}</a>`
-              : `<span class="revealed-value">${value}</span>`;
-            field.querySelector('span').innerHTML = link;
-            field.querySelector('span').className = '';
-          } else {
-            field.querySelector('span').textContent = 'Not available';
-            field.querySelector('span').className = 'not-available';
+
+        if (revealType === 'phone' && data.queued) {
+          if (field) field.querySelector('span').textContent = 'Looking up...';
+          let found = false;
+          for (let i = 0; i < 20; i++) {
+            await new Promise(r => setTimeout(r, 3000));
+            const poll = await fetch(`/phone-result/${personId}`);
+            const pd   = await poll.json();
+            if (pd.phone) {
+              if (field) { field.querySelector('span').innerHTML = `<span class="revealed-value">${pd.phone}</span>`; field.querySelector('span').className = ''; }
+              found = true; break;
+            }
+          }
+          if (!found && field) { field.querySelector('span').textContent = 'Not returned'; field.querySelector('span').className = 'not-available'; }
+        } else {
+          updateCredits(data.credits);
+          const value = revealType === 'email' ? data.email : data.phone;
+          if (field) {
+            if (value) {
+              const link = revealType === 'email'
+                ? `<a href="mailto:${value}" class="revealed-value">${value}</a>`
+                : `<span class="revealed-value">${value}</span>`;
+              field.querySelector('span').innerHTML = link;
+              field.querySelector('span').className = '';
+            } else {
+              field.querySelector('span').textContent = 'Not available';
+              field.querySelector('span').className = 'not-available';
+            }
           }
         }
 

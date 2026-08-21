@@ -281,6 +281,12 @@
                 ${c.email_revealed ? 'disabled' : ''}>
                 ${emailBtnLabel}
               </button>
+              <button class="btn-reveal ${c.phone_revealed ? 'revealed' : ''}"
+                id="btn-phone-${c.id}"
+                onclick="reveal('${c.id}', 'phone')"
+                ${c.phone_revealed ? 'disabled' : ''}>
+                ${c.phone_revealed ? '✓ Phone revealed' : '📞 Reveal Phone (1 credit)'}
+              </button>
             </div>
           </div>`;
       });
@@ -324,18 +330,39 @@
         return;
       }
 
-      updateCredits(data.credits);
+      // Phone is async — poll for result from Apollo webhook
+      if (type === 'phone' && data.queued) {
+        btn.innerHTML = `<span class="spinner-sm"></span> Looking up...`;
+        let found = false;
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          const poll = await fetch(`/phone-result/${personId}`);
+          const pd   = await poll.json();
+          if (pd.phone) {
+            field.innerHTML = `${icon} Phone: <span><a href="tel:${pd.phone}">${pd.phone}</a></span>`;
+            btn.classList.add('revealed');
+            btn.innerHTML = `✓ Phone revealed`;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          field.innerHTML = `${icon} Phone: <span><em style="color:#aaa">Not returned by Apollo — try again later</em></span>`;
+          btn.disabled = false;
+          btn.innerHTML = `📞 Reveal Phone (1 credit)`;
+        }
+        return;
+      }
 
-      const value = type === 'email' ? data.email : data.phone;
+      // Email — immediate result
+      updateCredits(data.credits);
+      const value = data.email;
       if (value) {
-        const link = type === 'email'
-          ? `<a href="mailto:${value}">${value}</a>`
-          : `<a href="tel:${value}">${value}</a>`;
-        field.innerHTML = `${icon} ${type === 'email' ? 'Email' : 'Phone'}: <span>${link}</span>`;
+        field.innerHTML = `${icon} Email: <span><a href="mailto:${value}">${value}</a></span>`;
         btn.classList.add('revealed');
-        btn.innerHTML = `✓ ${type === 'email' ? 'Email' : 'Phone'} revealed`;
+        btn.innerHTML = `✓ Email revealed`;
       } else {
-        field.innerHTML = `${icon} ${type === 'email' ? 'Email' : 'Phone'}: <span><em style="color:#aaa">Not available on this plan</em></span>`;
+        field.innerHTML = `${icon} Email: <span><em style="color:#aaa">Not available</em></span>`;
         btn.innerHTML = `— Not available`;
       }
 
