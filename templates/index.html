@@ -132,9 +132,9 @@
   <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
     <a href="/bulk" style="color:white;opacity:.85;font-size:.85rem;text-decoration:none">📋 Bulk Search</a>
     <a href="/stats" style="color:white;opacity:.85;font-size:.85rem;text-decoration:none">📊 Stats</a>
-    <div class="credits-bar" id="credits-bar" style="display:none">
-      <strong id="credits-remaining">—</strong>
-      credits remaining
+    <div class="credits-bar" id="credits-bar">
+      <strong id="credits-remaining">…</strong>
+      credits left
     </div>
   </div>
 </header>
@@ -187,18 +187,27 @@
 </main>
 
 <script>
+  async function loadCredits() {
+    try {
+      const r = await fetch('/credits');
+      const d = await r.json();
+      if (d.remaining != null) updateCredits(d);
+    } catch(e) {}
+  }
+
   function updateCredits(credits) {
     if (!credits || credits.remaining == null) return;
     const bar = document.getElementById('credits-bar');
     const rem = credits.remaining;
-    bar.style.display = 'block';
-    bar.classList.toggle('credits-low', rem <= 5);
+    bar.classList.toggle('credits-low', rem <= 10);
     document.getElementById('credits-remaining').textContent = rem;
-    if (rem <= 5) {
+    if (rem <= 10) {
       document.getElementById('alerts').innerHTML =
         `<div class="alert alert-info">⚠️ Only ${rem} credit(s) remaining — use reveals carefully.</div>`;
     }
   }
+
+  loadCredits();
 
   async function doSearch() {
     const btn = document.getElementById('search-btn');

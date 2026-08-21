@@ -207,6 +207,25 @@ def bulk_search():
     })
 
 
+@app.route("/credits")
+def credits():
+    """Return current Apollo credit balance by making a lightweight enrich call."""
+    try:
+        # Apollo returns credits_remaining on any enrich call; use a benign no-op payload
+        resp = requests.post(
+            APOLLO_ENRICH_URL,
+            json={"reveal_personal_emails": False},
+            headers=apollo_headers(),
+            timeout=10,
+        )
+        data = resp.json()
+        remaining = data.get("credits_remaining")
+        used      = data.get("credits_used")
+        return jsonify({"remaining": remaining, "used": used})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/reveal", methods=["POST"])
 def reveal():
     data            = request.get_json()

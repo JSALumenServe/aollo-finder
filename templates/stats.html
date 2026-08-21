@@ -58,6 +58,13 @@
     .badge-reveal-phone { background: #fff3e0; color: #e65100; }
 
     .empty { text-align: center; color: #aaa; padding: 32px; font-size: 0.95rem; }
+
+    .credits-bar {
+      background: rgba(255,255,255,.15); border-radius: 8px;
+      padding: 8px 16px; font-size: 0.82rem; text-align: right; min-width: 120px;
+    }
+    .credits-bar strong { display: block; font-size: 1.1rem; }
+    .credits-low { background: rgba(220,50,50,.5) !important; }
   </style>
 </head>
 <body>
@@ -68,9 +75,13 @@
     <h1>Usage Dashboard</h1>
     <p>Apollo Contact Finder · LumenServe Sales Team</p>
   </div>
-  <div style="margin-left:auto;display:flex;gap:10px">
+  <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
     <a href="/" class="back-btn">🔭 Single Search</a>
     <a href="/bulk" class="back-btn">📋 Bulk Search</a>
+    <div class="credits-bar" id="credits-bar">
+      <strong id="credits-remaining">…</strong>
+      credits left
+    </div>
   </div>
 </header>
 
@@ -161,5 +172,17 @@
   </div>
 
 </main>
+<script>
+  (async () => {
+    try {
+      const r = await fetch('/credits');
+      const d = await r.json();
+      if (d.remaining != null) {
+        document.getElementById('credits-remaining').textContent = d.remaining;
+        if (d.remaining <= 10) document.getElementById('credits-bar').classList.add('credits-low');
+      }
+    } catch(e) {}
+  })();
+</script>
 </body>
 </html>

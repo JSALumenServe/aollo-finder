@@ -154,8 +154,8 @@
   <div class="nav-links">
     <a href="/">🔭 Single Search</a>
     <a href="/stats">📊 Stats</a>
-    <div class="credits-bar" id="credits-bar" style="display:none">
-      <strong id="credits-remaining">—</strong>
+    <div class="credits-bar" id="credits-bar">
+      <strong id="credits-remaining">…</strong>
       credits remaining
     </div>
   </div>
@@ -255,13 +255,22 @@
     document.getElementById('pill-phone').classList.toggle('active', type === 'phone');
   }
 
+  async function loadCredits() {
+    try {
+      const r = await fetch('/credits');
+      const d = await r.json();
+      if (d.remaining != null) updateCredits(d);
+    } catch(e) {}
+  }
+
   function updateCredits(credits) {
     if (!credits || credits.remaining == null) return;
     const bar = document.getElementById('credits-bar');
-    bar.style.display = 'block';
-    bar.classList.toggle('credits-low', credits.remaining <= 5);
+    bar.classList.toggle('credits-low', credits.remaining <= 10);
     document.getElementById('credits-remaining').textContent = credits.remaining;
   }
+
+  loadCredits();
 
   function updateSelectedCount() {
     const checked = document.querySelectorAll('.contact-check:checked').length;
