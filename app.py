@@ -219,8 +219,7 @@ def reveal():
 
     payload = {
         "id":                    person_id,
-        "reveal_personal_emails": reveal_type == "email",
-        "reveal_phone_number":    reveal_type == "phone",
+        "reveal_personal_emails": True,
     }
     try:
         resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)

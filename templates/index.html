@@ -281,12 +281,6 @@
                 ${c.email_revealed ? 'disabled' : ''}>
                 ${emailBtnLabel}
               </button>
-              <button class="btn-reveal ${c.phone_revealed ? 'revealed' : ''}"
-                id="btn-phone-${c.id}"
-                onclick="reveal('${c.id}', 'phone')"
-                ${c.phone_revealed ? 'disabled' : ''}>
-                ${phoneBtnLabel}
-              </button>
             </div>
           </div>`;
       });
