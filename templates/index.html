@@ -76,11 +76,8 @@
 
     .contact-name { font-size: 1.05rem; font-weight: 700; color: #1a1a2e; margin-bottom: 12px; }
 
-    .contact-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; }
-    .contact-field { font-size: 0.87rem; color: #555; }
-    .contact-field span { color: #222; font-weight: 500; }
-    .contact-field a { color: #1a73e8; text-decoration: none; }
-    .contact-field a:hover { text-decoration: underline; }
+    .contact-meta { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 0.86rem; color: #666; margin: 4px 0 10px; }
+    .contact-meta strong { color: #222; font-weight: 600; }
 
     /* Availability badges */
     .avail-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
@@ -328,24 +325,21 @@
 
         const phoneBadge = c.phone_revealed
           ? `<span class="avail-badge avail-yes">📞 ${c.phone}</span>`
-          : c.has_phone
-            ? `<span class="avail-badge avail-yes" id="phone-badge-${c.id}">📞 Phone on file</span>`
-            : `<span class="avail-badge avail-no">📞 No phone found</span>`;
+          : `<span class="avail-badge" id="phone-badge-${c.id}" style="background:#fff3e0;color:#e65100">📞 Reveal to check</span>`;
 
         body.innerHTML += `
           <div class="contact-card" id="card-${c.id}" onclick="toggleCard('${c.id}')" style="cursor:pointer">
-            <div style="display:flex;align-items:flex-start;gap:14px">
+            <div style="display:flex;gap:14px;align-items:flex-start">
               <input type="checkbox" class="contact-check" data-id="${c.id}"
-                ${c.email_revealed && c.phone_revealed ? 'disabled' : ''}
                 onclick="event.stopPropagation();toggleCard('${c.id}',this.checked)"
-                onchange="updateRevealBar()" style="margin-top:4px;flex-shrink:0">
-              <div style="flex:1;min-width:0">
-                <div class="contact-name">${c.name || '(No name)'}</div>
-                <div style="display:flex;flex-wrap:wrap;gap:6px 20px;font-size:.87rem;color:#555;margin-bottom:10px">
-                  <span>Title: <strong>${c.title}</strong></span>
-                  <span>Company: <strong>${c.company}</strong></span>
-                  ${c.location ? `<span>Location: <strong>${c.location}</strong></span>` : ''}
-                  ${c.linkedin ? `<span><a href="${c.linkedin}" target="_blank" onclick="event.stopPropagation()">LinkedIn →</a></span>` : ''}
+                onchange="updateRevealBar()" style="margin-top:5px;flex-shrink:0;width:16px;height:16px">
+              <div style="flex:1">
+                <div class="contact-name" style="margin-bottom:4px">${c.name || '(No name)'}</div>
+                <div class="contact-meta">
+                  <span><strong>${c.title}</strong></span>
+                  <span>· ${c.company}</span>
+                  ${c.location ? `<span>· ${c.location}</span>` : ''}
+                  ${c.linkedin ? `<span>· <a href="${c.linkedin}" target="_blank" onclick="event.stopPropagation()" style="color:#1a73e8">LinkedIn</a></span>` : ''}
                 </div>
                 <div class="avail-row" id="avail-${c.id}">
                   ${emailBadge}

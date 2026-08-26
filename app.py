@@ -79,11 +79,8 @@ def format_contact(person: dict) -> dict:
     email        = person.get("email", "")
     phone        = person.get("sanitized_phone", "")
     email_status = person.get("email_status", "")
-    phone_nums   = person.get("phone_numbers") or []
-    # has_email: Apollo confirmed an email exists (may not be revealed yet)
-    has_email    = bool(email_status and email_status not in ("invalid", "no_email")) or bool(email and "@" in email)
-    # has_phone: Apollo has at least one phone number on file
-    has_phone    = bool(phone_nums) or bool(phone)
+    has_email    = email_status in ("verified", "unverified", "likely to engage") or bool(email and "@" in email)
+    has_phone    = True  # Apollo doesn't expose phone availability in search; always allow reveal
     return {
         "id":             person.get("id", ""),
         "name":           f"{person.get('first_name', '')} {person.get('last_name', '')}".strip(),
