@@ -321,35 +321,35 @@
           ? `<a href="${c.linkedin}" target="_blank">View →</a>` : '—';
 
         const emailBadge = c.email_revealed
-          ? `<span class="avail-badge avail-yes">✓ ${c.email}</span>`
+          ? `<span class="avail-badge avail-yes">✉️ ${c.email}</span>`
           : c.has_email
-            ? `<span class="avail-badge avail-yes" id="email-badge-${c.id}">✓ Email on file</span>`
-            : `<span class="avail-badge avail-no">— No email</span>`;
+            ? `<span class="avail-badge avail-yes" id="email-badge-${c.id}">✉️ Email on file</span>`
+            : `<span class="avail-badge avail-no">✉️ No email found</span>`;
 
         const phoneBadge = c.phone_revealed
-          ? `<span class="avail-badge avail-yes">✓ ${c.phone}</span>`
+          ? `<span class="avail-badge avail-yes">📞 ${c.phone}</span>`
           : c.has_phone
-            ? `<span class="avail-badge avail-yes" id="phone-badge-${c.id}">✓ Phone on file</span>`
-            : `<span class="avail-badge avail-no">— No phone</span>`;
+            ? `<span class="avail-badge avail-yes" id="phone-badge-${c.id}">📞 Phone on file</span>`
+            : `<span class="avail-badge avail-no">📞 No phone found</span>`;
 
         body.innerHTML += `
           <div class="contact-card" id="card-${c.id}" onclick="toggleCard('${c.id}')" style="cursor:pointer">
-            <div style="display:flex;align-items:flex-start;gap:12px">
+            <div style="display:flex;align-items:flex-start;gap:14px">
               <input type="checkbox" class="contact-check" data-id="${c.id}"
                 ${c.email_revealed && c.phone_revealed ? 'disabled' : ''}
                 onclick="event.stopPropagation();toggleCard('${c.id}',this.checked)"
-                onchange="updateRevealBar()">
-              <div style="flex:1">
+                onchange="updateRevealBar()" style="margin-top:4px;flex-shrink:0">
+              <div style="flex:1;min-width:0">
                 <div class="contact-name">${c.name || '(No name)'}</div>
-                <div class="contact-fields">
-                  <div class="contact-field">🏷️ <span>${c.title}</span></div>
-                  <div class="contact-field">🏢 <span>${c.company}</span></div>
-                  <div class="contact-field">📍 <span>${c.location || '—'}</span></div>
-                  <div class="contact-field">🔗 <span>${linkedinHtml}</span></div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px 20px;font-size:.87rem;color:#555;margin-bottom:10px">
+                  <span>Title: <strong>${c.title}</strong></span>
+                  <span>Company: <strong>${c.company}</strong></span>
+                  ${c.location ? `<span>Location: <strong>${c.location}</strong></span>` : ''}
+                  ${c.linkedin ? `<span><a href="${c.linkedin}" target="_blank" onclick="event.stopPropagation()">LinkedIn →</a></span>` : ''}
                 </div>
                 <div class="avail-row" id="avail-${c.id}">
-                  <span>✉️</span>${emailBadge}
-                  <span style="margin-left:8px">📞</span>${phoneBadge}
+                  ${emailBadge}
+                  ${phoneBadge}
                 </div>
               </div>
             </div>
