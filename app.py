@@ -4,6 +4,7 @@ import io
 import time
 import requests
 import openpyxl
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from supabase import create_client
@@ -96,6 +97,28 @@ def format_contact(person: dict) -> dict:
     }
 
 
+def check_availability(person_id: str) -> dict:
+    """Check if Apollo has email/phone for a contact without spending credits."""
+    try:
+        resp = requests.post(
+            APOLLO_ENRICH_URL,
+            json={"id": person_id},
+            headers=apollo_headers(),
+            timeout=8,
+        )
+        if not resp.ok:
+            return {"has_email": None, "has_phone": None}
+        p = resp.json().get("person") or {}
+        email  = p.get("email", "")
+        status = p.get("email_status", "")
+        phones = p.get("phone_numbers") or []
+        has_email = bool((email and "@" in email) or status in ("verified", "unverified", "likely to engage"))
+        has_phone = bool(phones or p.get("sanitized_phone"))
+        return {"has_email": has_email, "has_phone": has_phone}
+    except Exception:
+        return {"has_email": None, "has_phone": None}
+
+
 def parse_company_list(file) -> list:
     """Parse uploaded CSV or Excel and return list of company names."""
     filename = file.filename.lower()
@@ -159,6 +182,16 @@ def search():
     people   = result.get("people", [])
     contacts = [format_contact(p) for p in people]
     credits  = {"remaining": result.get("credits_remaining")}
+
+    # Check availability for each contact in parallel (no credits spent)
+    if contacts:
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            futures = {ex.submit(check_availability, c["id"]): i for i, c in enumerate(contacts)}
+            for future in as_completed(futures):
+                i   = futures[future]
+                av  = future.result()
+                contacts[i]["has_email"] = av["has_email"]
+                contacts[i]["has_phone"] = av["has_phone"]
 
     log_usage("search", {
         "search_name":     search_params["name"],

@@ -322,11 +322,19 @@
 
         const emailBadge = c.email_revealed
           ? `<span class="avail-badge avail-yes">✉️ ${c.email}</span>`
-          : `<span class="avail-badge" id="email-badge-${c.id}" style="background:#e3f2fd;color:#1565c0">✉️ Check to reveal</span>`;
+          : c.has_email === true
+            ? `<span class="avail-badge avail-yes" id="email-badge-${c.id}">✉️ Email available</span>`
+            : c.has_email === false
+              ? `<span class="avail-badge avail-no" id="email-badge-${c.id}">✉️ No email found</span>`
+              : `<span class="avail-badge" id="email-badge-${c.id}" style="background:#e3f2fd;color:#1565c0">✉️ Check to reveal</span>`;
 
         const phoneBadge = c.phone_revealed
           ? `<span class="avail-badge avail-yes">📞 ${c.phone}</span>`
-          : `<span class="avail-badge" id="phone-badge-${c.id}" style="background:#e3f2fd;color:#1565c0">📞 Check to reveal</span>`;
+          : c.has_phone === true
+            ? `<span class="avail-badge avail-yes" id="phone-badge-${c.id}">📞 Phone available</span>`
+            : c.has_phone === false
+              ? `<span class="avail-badge avail-no" id="phone-badge-${c.id}">📞 No phone found</span>`
+              : `<span class="avail-badge" id="phone-badge-${c.id}" style="background:#e3f2fd;color:#1565c0">📞 Check to reveal</span>`;
 
         body.innerHTML += `
           <div class="contact-card" id="card-${c.id}" onclick="toggleCard('${c.id}')" style="cursor:pointer">
