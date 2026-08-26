@@ -189,8 +189,18 @@
     <button class="btn-search" id="search-btn" onclick="doSearch()">Search Apollo</button>
   </div>
 
+  <!-- Legend -->
+  <div class="card" style="padding:16px 24px;margin-bottom:0;border-radius:10px 10px 0 0;background:#f8f9fa;box-shadow:none;border-bottom:1px solid #e8eaf0;display:none" id="legend">
+    <div style="display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;font-size:.82rem;color:#555">
+      <strong style="color:#333;margin-right:4px">How to read results:</strong>
+      <span><span class="avail-badge avail-yes" style="font-size:.78rem">✉️ Email available</span> Apollo has it — spend a credit to reveal</span>
+      <span><span class="avail-badge avail-no" style="font-size:.78rem">✉️ No email found</span> Apollo has nothing — credit wasted</span>
+      <span><span class="avail-badge" style="font-size:.78rem;background:#e3f2fd;color:#1565c0">✉️ Check to reveal</span> Couldn't confirm — try if you want</span>
+    </div>
+  </div>
+
   <!-- Results section -->
-  <div id="results">
+  <div id="results" style="margin-top:0">
     <div class="result-header">
       <h2 style="color:#333;font-size:1.1rem">Results</h2>
       <div style="display:flex;align-items:center;gap:12px">
@@ -310,6 +320,7 @@
       }
 
       document.getElementById('count-badge').textContent = `${data.count} found`;
+      document.getElementById('legend').style.display = data.count > 0 ? 'block' : 'none';
 
       if (data.count === 0) {
         body.innerHTML = '<div class="no-results">No contacts found — try broadening your search criteria.</div>';
