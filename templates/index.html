@@ -223,7 +223,10 @@
       const r = await fetch('/credits');
       const d = await r.json();
       if (d.remaining != null) updateCredits(d);
-    } catch(e) {}
+      else document.getElementById('credits-remaining').textContent = '—';
+    } catch(e) {
+      document.getElementById('credits-remaining').textContent = '—';
+    }
   }
 
   function updateCredits(credits) {
