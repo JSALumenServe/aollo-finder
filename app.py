@@ -78,9 +78,8 @@ def format_contact(person: dict) -> dict:
     org          = person.get("organization") or {}
     email        = person.get("email", "")
     phone        = person.get("sanitized_phone", "")
-    email_status = person.get("email_status", "")
-    has_email    = email_status in ("verified", "unverified", "likely to engage") or bool(email and "@" in email)
-    has_phone    = True  # Apollo doesn't expose phone availability in search; always allow reveal
+    has_email    = True  # Apollo search doesn't reliably surface availability; always allow reveal
+    has_phone    = True
     return {
         "id":             person.get("id", ""),
         "name":           f"{person.get('first_name', '')} {person.get('last_name', '')}".strip(),

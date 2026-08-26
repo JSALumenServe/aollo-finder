@@ -322,9 +322,7 @@
 
         const emailBadge = c.email_revealed
           ? `<span class="avail-badge avail-yes">✉️ ${c.email}</span>`
-          : c.has_email
-            ? `<span class="avail-badge avail-yes" id="email-badge-${c.id}">✉️ Email on file</span>`
-            : `<span class="avail-badge avail-no">✉️ No email found</span>`;
+          : `<span class="avail-badge" id="email-badge-${c.id}" style="background:#e3f2fd;color:#1565c0">✉️ Check to reveal</span>`;
 
         const phoneBadge = c.phone_revealed
           ? `<span class="avail-badge avail-yes">📞 ${c.phone}</span>`
