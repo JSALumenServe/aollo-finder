@@ -439,8 +439,8 @@ def phone_result(person_id):
         row = rows.data[0] if rows.data else None
         if row and row.get("phone"):
             return jsonify({"phone": row["phone"]})
-        # Re-fetch the person from Apollo — phone may now be in their record
-        resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id}, headers=apollo_headers(), timeout=10)
+        # Re-call with reveal flag — Apollo returns cached result for already-revealed contacts
+        resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id, "reveal_phone_number": True, "webhook_url": f"{APP_BASE_URL}/webhook/phone"}, headers=apollo_headers(), timeout=10)
         if not resp.ok:
             return jsonify({"phone": None})
         person = resp.json().get("person") or {}

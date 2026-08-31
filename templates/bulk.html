@@ -516,7 +516,7 @@
     if (phoneQueue.length) {
       btn.innerHTML = `<span class="spinner-sm"></span> Waiting for ${phoneQueue.length} phone(s)...`;
       const pending = new Set(phoneQueue.map(p => p.personId));
-      for (let i = 0; i < 6 && pending.size > 0; i++) {
+      for (let i = 0; i < 24 && pending.size > 0; i++) {
         await new Promise(r => setTimeout(r, 5000));
         await Promise.all([...pending].map(async pid => {
           const poll = await fetch(`/phone-result/${pid}`);
