@@ -396,6 +396,13 @@ def reveal():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/test-poll/<request_id>")
+def test_poll(request_id):
+    """Debug: poll Apollo webhook_result endpoint for a given request_id."""
+    resp = requests.get(f"https://api.apollo.io/api/v1/webhook_result/{request_id}", headers=apollo_headers(), timeout=15)
+    return jsonify({"status": resp.status_code, "apollo": resp.json()})
+
+
 @app.route("/test-phone/<person_id>")
 def test_phone(person_id):
     """Debug: reveal phone for one person and return the raw Apollo response."""
