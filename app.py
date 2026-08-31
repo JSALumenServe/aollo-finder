@@ -352,16 +352,33 @@ def reveal():
         return jsonify({"error": "No contact ID provided."}), 400
 
     if reveal_type == "phone":
-        # Phone requires async webhook — tell Apollo to POST result back to us
         payload = {
-            "id":                 person_id,
+            "id":                  person_id,
             "reveal_phone_number": True,
-            "webhook_url":        f"{APP_BASE_URL}/webhook/phone",
+            "webhook_url":         f"{APP_BASE_URL}/webhook/phone",
         }
         try:
             resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)
             resp.raise_for_status()
+            result = resp.json()
+            person = result.get("person") or {}
+            # Apollo often returns phone synchronously in the same response
+            phone = person.get("sanitized_phone") or person.get("mobile_phone") or ""
+            if not phone:
+                for pn in (person.get("phone_numbers") or []):
+                    phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
+                    if phone:
+                        break
             log_usage("reveal", {"reveal_type": "phone", "contact_name": contact_name, "contact_company": contact_company})
+            if phone and db is not None:
+                try:
+                    db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
+                    db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
+                except Exception:
+                    pass
+            if phone:
+                return jsonify({"phone": phone, "person_id": person_id})
+            # No immediate result — webhook will fire async, frontend polls
             return jsonify({"queued": True, "person_id": person_id})
         except requests.exceptions.HTTPError as e:
             return jsonify({"error": f"Apollo API error: {e.response.status_code} — {e.response.text}"}), 500

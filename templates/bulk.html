@@ -476,8 +476,11 @@
         });
         const data = await resp.json();
 
-        if (type === 'phone' && data.queued) {
-          // Mark as queued — poll all at the end
+        if (type === 'phone' && data.phone) {
+          // Apollo returned phone synchronously
+          if (field) { field.querySelector('span').innerHTML = `<span class="revealed-value">${data.phone}</span>`; field.querySelector('span').className = ''; }
+        } else if (type === 'phone' && data.queued) {
+          // No immediate result — Apollo will POST to webhook, we poll
           if (field) field.querySelector('span').textContent = 'Queued...';
           phoneQueue.push({ personId, field });
         } else {
