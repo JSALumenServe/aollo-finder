@@ -471,31 +471,20 @@ def webhook_phone():
 
 @app.route("/phone-result/<person_id>", methods=["GET"])
 def phone_result(person_id):
-    """Poll Apollo's webhook_result endpoint using the stored request_id."""
+    """Re-fetch the person from Apollo to pick up any phone that was processed after reveal."""
     if db is None:
         return jsonify({"phone": None})
     try:
-        rows = db.table("phone_results").select("phone,apollo_request_id").eq("person_id", person_id).execute()
+        # Check if already saved
+        rows = db.table("phone_results").select("phone").eq("person_id", person_id).execute()
         row = rows.data[0] if rows.data else None
-        if not row:
-            return jsonify({"phone": None})
-        # Already resolved
-        if row.get("phone"):
+        if row and row.get("phone"):
             return jsonify({"phone": row["phone"]})
-        # Poll Apollo for the async result
-        request_id = row.get("apollo_request_id")
-        if not request_id:
+        # Re-fetch the person from Apollo — phone may now be in their record
+        resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id}, headers=apollo_headers(), timeout=10)
+        if not resp.ok:
             return jsonify({"phone": None})
-        poll_resp = requests.get(
-            f"https://api.apollo.io/api/v1/webhook_result/{request_id}",
-            headers=apollo_headers(),
-            timeout=10,
-        )
-        if not poll_resp.ok:
-            return jsonify({"phone": None})
-        data = poll_resp.json()
-        # Extract phone from Apollo's webhook_result response
-        person = data.get("person") or {}
+        person = resp.json().get("person") or {}
         phone = person.get("sanitized_phone") or person.get("mobile_phone") or ""
         if not phone:
             for pn in (person.get("phone_numbers") or []):
@@ -503,7 +492,7 @@ def phone_result(person_id):
                 if phone:
                     break
         if phone:
-            db.table("phone_results").upsert({"person_id": person_id, "phone": phone, "apollo_request_id": request_id}).execute()
+            db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
             db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
         return jsonify({"phone": phone or None})
     except Exception as e:
