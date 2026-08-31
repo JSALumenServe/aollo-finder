@@ -203,7 +203,10 @@
         <h2 style="color:#333;font-size:1.1rem">Results</h2>
         <div style="font-size:.83rem;color:#888;margin-top:3px" id="result-sub"></div>
       </div>
-      <span class="badge" id="count-badge">0 found</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button id="export-btn" onclick="exportCSV()" style="display:none;padding:7px 16px;background:#2e7d32;color:white;border:none;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer">⬇️ Export CSV</button>
+        <span class="badge" id="count-badge">0 found</span>
+      </div>
     </div>
 
     <div id="alerts-results"></div>
@@ -280,6 +283,34 @@
       `Reveal ${checked} ${revealType === 'email' ? 'Email' : 'Phone'}${checked !== 1 ? 's' : ''} (uses credits)`;
   }
 
+  function exportCSV() {
+    // Collect current state from the DOM so revealed values are included
+    const rows = [['Name', 'Title', 'Company', 'Searched Company', 'Location', 'Email', 'Phone', 'LinkedIn']];
+    allContacts.forEach(c => {
+      // Pick up any revealed values from the DOM
+      const emailEl = document.getElementById(`email-field-${c.id}`);
+      const phoneEl = document.getElementById(`phone-field-${c.id}`);
+      const emailVal = emailEl ? (emailEl.querySelector('a')?.textContent || emailEl.querySelector('span')?.textContent || c.email || '') : (c.email || '');
+      const phoneVal = phoneEl ? (phoneEl.querySelector('span.revealed-value')?.textContent || c.phone || '') : (c.phone || '');
+      const clean = v => `"${(v || '').replace(/"/g, '""')}"`;
+      rows.push([
+        clean(c.name), clean(c.title), clean(c.company),
+        clean(c.searched_company), clean(c.location),
+        clean(emailVal.includes('Not') || emailVal.includes('yet') ? '' : emailVal),
+        clean(phoneVal.includes('Not') || phoneVal.includes('yet') || phoneVal.includes('check') ? '' : phoneVal),
+        clean(c.linkedin),
+      ]);
+    });
+    const csv  = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `apollo-results-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function toggleAll(checked) {
     document.querySelectorAll('.contact-check').forEach(cb => {
       cb.checked = checked;
@@ -336,6 +367,7 @@
 
       allContacts = data.contacts;
       document.getElementById('count-badge').textContent = `${data.count} contacts found`;
+      document.getElementById('export-btn').style.display = data.count > 0 ? 'block' : 'none';
       document.getElementById('result-sub').textContent =
         `Searched ${data.companies} of ${data.total} companies · ${data.count} contacts returned`;
       document.getElementById('select-all-row').style.display = data.count > 0 ? 'flex' : 'none';
