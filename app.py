@@ -352,7 +352,7 @@ def reveal():
         return jsonify({"error": "No contact ID provided."}), 400
 
     if reveal_type == "phone":
-        payload = {"id": person_id, "reveal_phone_number": True}
+        payload = {"id": person_id, "reveal_phone_number": True, "webhook_url": f"{APP_BASE_URL}/webhook/phone"}
         try:
             resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)
             resp.raise_for_status()
@@ -402,6 +402,7 @@ def reveal():
 def webhook_phone():
     """Apollo posts phone results here asynchronously."""
     payload = request.get_json(silent=True) or {}
+    app.logger.info(f"WEBHOOK RECEIVED: keys={list(payload.keys())}")
     people  = []
     if payload.get("person"):   people.append(payload["person"])
     if payload.get("people"):   people.extend(payload["people"])
