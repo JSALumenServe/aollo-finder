@@ -453,12 +453,16 @@
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner-sm"></span> Revealing ${type === 'email' ? 'emails' : 'phones'} for ${checked.length}...`;
 
+    // Queue all reveals simultaneously, poll for phones in parallel
     let done = 0;
+    const phoneQueue = []; // track queued phone reveals
+
     for (const cb of checked) {
       const personId = cb.dataset.id;
-      const card = cb.closest('.contact-card');
-      const nameEl = card.querySelector('.contact-name');
-      const companyEl = card.querySelector('.contact-field:nth-child(2) span');
+      const card     = cb.closest('.contact-card');
+      const nameEl   = card.querySelector('.contact-name');
+      const companyEl= card.querySelector('.contact-field:nth-child(2) span');
+      const field    = document.getElementById(`${type}-field-${personId}`);
 
       try {
         const resp = await fetch('/reveal', {
@@ -471,21 +475,11 @@
           }),
         });
         const data = await resp.json();
-        const field = document.getElementById(`${type}-field-${personId}`);
 
         if (type === 'phone' && data.queued) {
-          if (field) field.querySelector('span').textContent = 'Looking up...';
-          let found = false;
-          for (let i = 0; i < 20; i++) {
-            await new Promise(r => setTimeout(r, 3000));
-            const poll = await fetch(`/phone-result/${personId}`);
-            const pd   = await poll.json();
-            if (pd.phone) {
-              if (field) { field.querySelector('span').innerHTML = `<span class="revealed-value">${pd.phone}</span>`; field.querySelector('span').className = ''; }
-              found = true; break;
-            }
-          }
-          if (!found && field) { field.querySelector('span').textContent = 'Not returned'; field.querySelector('span').className = 'not-available'; }
+          // Mark as queued — poll all at the end
+          if (field) field.querySelector('span').textContent = 'Queued...';
+          phoneQueue.push({ personId, field });
         } else {
           updateCredits(data.credits);
           const value = type === 'email' ? data.email : data.phone;
@@ -505,13 +499,32 @@
 
         cb.checked = false;
         card.classList.remove('selected');
-      } catch (e) {
-        // skip failed reveals silently
-      }
+      } catch (e) { /* skip */ }
 
       done++;
       btn.innerHTML = `<span class="spinner-sm"></span> Revealing... ${done}/${checked.length}`;
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    // After all queued, poll ALL phones in parallel every 3s
+    if (phoneQueue.length) {
+      btn.innerHTML = `<span class="spinner-sm"></span> Waiting for ${phoneQueue.length} phone(s)...`;
+      const pending = new Set(phoneQueue.map(p => p.personId));
+      for (let i = 0; i < 20 && pending.size > 0; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        await Promise.all([...pending].map(async pid => {
+          const poll = await fetch(`/phone-result/${pid}`);
+          const pd   = await poll.json();
+          if (pd.phone) {
+            const { field } = phoneQueue.find(p => p.personId === pid);
+            if (field) { field.querySelector('span').innerHTML = `<span class="revealed-value">${pd.phone}</span>`; field.querySelector('span').className = ''; }
+            pending.delete(pid);
+          }
+        }));
+      }
+      phoneQueue.filter(p => pending.has(p.personId)).forEach(({ field }) => {
+        if (field) { field.querySelector('span').textContent = 'Not returned'; field.querySelector('span').className = 'not-available'; }
+      });
     }
 
     btn.disabled = false;
