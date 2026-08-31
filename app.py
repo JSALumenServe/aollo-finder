@@ -231,24 +231,30 @@ def bulk_search():
 
     all_contacts = []
     batch_size   = 8   # parallel workers — stays well under Apollo rate limits
-    company_list = companies[:100]
+    company_list = companies[:150]
     for i in range(0, len(company_list), batch_size):
         batch = company_list[i:i + batch_size]
         with ThreadPoolExecutor(max_workers=batch_size) as ex:
             for result in ex.map(search_one, batch):
                 all_contacts.extend(result)
 
+    total_in_file = len(companies)
+    searched      = len(company_list)
+    skipped       = total_in_file - searched
+
     log_usage("bulk_search", {
-        "search_company": f"{len(companies)} companies",
-        "search_title":   titles,
+        "search_company":  f"{searched} of {total_in_file} companies",
+        "search_title":    titles,
         "search_location": location,
-        "results_count":  len(all_contacts),
+        "results_count":   len(all_contacts),
     })
 
     return jsonify({
         "contacts":   all_contacts,
         "count":      len(all_contacts),
-        "companies":  len(companies),
+        "companies":  searched,
+        "skipped":    skipped,
+        "total":      total_in_file,
     })
 
 

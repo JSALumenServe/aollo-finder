@@ -337,8 +337,13 @@
       allContacts = data.contacts;
       document.getElementById('count-badge').textContent = `${data.count} contacts found`;
       document.getElementById('result-sub').textContent =
-        `Searched ${data.companies} companies · ${data.count} contacts returned`;
+        `Searched ${data.companies} of ${data.total} companies · ${data.count} contacts returned`;
       document.getElementById('select-all-row').style.display = data.count > 0 ? 'flex' : 'none';
+
+      if (data.skipped > 0) {
+        document.getElementById('alerts-results').innerHTML =
+          `<div class="alert alert-info">⚠️ Your file had ${data.total} companies — only the first ${data.companies} were searched to stay within the time limit. <strong>Break your file into batches of 150 or fewer</strong> and run again for the remaining ${data.skipped}.</div>`;
+      }
 
       renderContacts(data.contacts);
 
