@@ -352,35 +352,22 @@ def reveal():
         return jsonify({"error": "No contact ID provided."}), 400
 
     if reveal_type == "phone":
-        payload = {
-            "id":                  person_id,
-            "reveal_phone_number": True,
-            "webhook_url":         f"{APP_BASE_URL}/webhook/phone",
-        }
+        payload = {"id": person_id, "reveal_phone_number": True}
         try:
             resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)
             resp.raise_for_status()
             result = resp.json()
             person = result.get("person") or {}
-            app.logger.info(f"PHONE REVEAL response keys: {list(result.keys())}, person keys: {list(person.keys())}, sanitized_phone={person.get('sanitized_phone')}, phone_numbers={person.get('phone_numbers')}")
-            # Apollo often returns phone synchronously in the same response
-            phone = person.get("sanitized_phone") or person.get("mobile_phone") or ""
-            if not phone:
-                for pn in (person.get("phone_numbers") or []):
-                    phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
-                    if phone:
-                        break
+            # Apollo returns request_id to poll for async phone enrichment
+            enrichment = result.get("phone_enrichment") or {}
+            apollo_request_id = enrichment.get("request_id") or str(result.get("request_id") or "")
             log_usage("reveal", {"reveal_type": "phone", "contact_name": contact_name, "contact_company": contact_company})
-            if phone and db is not None:
+            if apollo_request_id and db is not None:
                 try:
-                    db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
-                    db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
+                    db.table("phone_results").upsert({"person_id": person_id, "apollo_request_id": apollo_request_id}).execute()
                 except Exception:
                     pass
-            if phone:
-                return jsonify({"phone": phone, "person_id": person_id})
-            # No immediate result — webhook will fire async, frontend polls
-            return jsonify({"queued": True, "person_id": person_id})
+            return jsonify({"queued": True, "person_id": person_id, "apollo_request_id": apollo_request_id})
         except requests.exceptions.HTTPError as e:
             return jsonify({"error": f"Apollo API error: {e.response.status_code} — {e.response.text}"}), 500
         except Exception as e:
@@ -448,13 +435,41 @@ def webhook_phone():
 
 @app.route("/phone-result/<person_id>", methods=["GET"])
 def phone_result(person_id):
-    """Frontend polls this to check if Apollo has delivered the phone number yet."""
+    """Poll Apollo's webhook_result endpoint using the stored request_id."""
     if db is None:
         return jsonify({"phone": None})
     try:
-        rows = db.table("phone_results").select("phone").eq("person_id", person_id).execute()
-        phone = rows.data[0]["phone"] if rows.data else None
-        return jsonify({"phone": phone})
+        rows = db.table("phone_results").select("phone,apollo_request_id").eq("person_id", person_id).execute()
+        row = rows.data[0] if rows.data else None
+        if not row:
+            return jsonify({"phone": None})
+        # Already resolved
+        if row.get("phone"):
+            return jsonify({"phone": row["phone"]})
+        # Poll Apollo for the async result
+        request_id = row.get("apollo_request_id")
+        if not request_id:
+            return jsonify({"phone": None})
+        poll_resp = requests.get(
+            f"https://api.apollo.io/api/v1/webhook_result/{request_id}",
+            headers=apollo_headers(),
+            timeout=10,
+        )
+        if not poll_resp.ok:
+            return jsonify({"phone": None})
+        data = poll_resp.json()
+        # Extract phone from Apollo's webhook_result response
+        person = data.get("person") or {}
+        phone = person.get("sanitized_phone") or person.get("mobile_phone") or ""
+        if not phone:
+            for pn in (person.get("phone_numbers") or []):
+                phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
+                if phone:
+                    break
+        if phone:
+            db.table("phone_results").upsert({"person_id": person_id, "phone": phone, "apollo_request_id": request_id}).execute()
+            db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
+        return jsonify({"phone": phone or None})
     except Exception as e:
         return jsonify({"phone": None, "error": str(e)})
 
