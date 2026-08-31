@@ -317,18 +317,25 @@ def bulk_search():
 
 @app.route("/credits")
 def credits():
-    """Return current Apollo credit balance via a minimal search call."""
+    """Return current Apollo credit balance. Uses enrich API which reliably returns credits_remaining."""
     try:
+        # Hit the search API with a 1-result query — it returns credits_remaining in the response
         resp = requests.post(
             APOLLO_SEARCH_URL,
-            json={"page": 1, "per_page": 1, "q_keywords": "a"},
+            json={"page": 1, "per_page": 1, "person_titles": ["CEO"]},
             headers=apollo_headers(),
             timeout=10,
         )
         data      = resp.json()
-        remaining = data.get("credits_remaining")
-        used      = data.get("credits_used")
-        return jsonify({"remaining": remaining, "used": used})
+        app.logger.info(f"Credits response keys: {list(data.keys())}")
+        # Try several known key names Apollo has used
+        remaining = (
+            data.get("credits_remaining") or
+            data.get("rate_limit_remaining") or
+            data.get("credits", {}).get("remaining") if isinstance(data.get("credits"), dict) else None
+        )
+        used = data.get("credits_used") or data.get("rate_limit_used")
+        return jsonify({"remaining": remaining, "used": used, "_keys": list(data.keys())})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
