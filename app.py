@@ -219,16 +219,24 @@ def bulk_search():
     if not companies:
         return jsonify({"error": "No company names found in the file."}), 400
 
-    all_contacts = []
-    for company in companies[:100]:  # cap at 100 companies per batch
+    def search_one(company):
         result = search_apollo({"company": company, "title": titles, "location": location})
+        contacts = []
         if "error" not in result:
-            people = result.get("people", [])
-            for p in people:
+            for p in result.get("people", []):
                 c = format_contact(p)
-                c["searched_company"] = company  # the company we searched for
-                all_contacts.append(c)
-        time.sleep(0.3)  # avoid Apollo rate limits
+                c["searched_company"] = company
+                contacts.append(c)
+        return contacts
+
+    all_contacts = []
+    batch_size   = 8   # parallel workers — stays well under Apollo rate limits
+    company_list = companies[:100]
+    for i in range(0, len(company_list), batch_size):
+        batch = company_list[i:i + batch_size]
+        with ThreadPoolExecutor(max_workers=batch_size) as ex:
+            for result in ex.map(search_one, batch):
+                all_contacts.extend(result)
 
     log_usage("bulk_search", {
         "search_company": f"{len(companies)} companies",

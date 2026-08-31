@@ -345,7 +345,7 @@
     } catch (e) {
       clearInterval(timer);
       document.getElementById('progress-wrap').style.display = 'none';
-      document.getElementById('alerts-results').innerHTML = '<div class="alert alert-error">Network error — please try again.</div>';
+      document.getElementById('alerts-results').innerHTML = `<div class="alert alert-error">Network error: ${e.message} — the file may be too large or the search timed out. Try fewer companies.</div>`;
       document.getElementById('results').style.display = 'block';
     } finally {
       btn.disabled = false;
