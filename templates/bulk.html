@@ -497,8 +497,11 @@
           }
         }
 
-        cb.checked = false;
-        card.classList.remove('selected');
+        // Only uncheck after phone pass (or email-only reveal)
+        if (type !== 'email') {
+          cb.checked = false;
+          card.classList.remove('selected');
+        }
       } catch (e) { /* skip */ }
 
       done++;
@@ -526,6 +529,12 @@
         if (field) { field.querySelector('span').textContent = 'Not returned'; field.querySelector('span').className = 'not-available'; }
       });
     }
+
+    // Uncheck all remaining selected cards (phone pass, or email-only)
+    document.querySelectorAll('.contact-check:checked').forEach(cb => {
+      cb.checked = false;
+      cb.closest('.contact-card')?.classList.remove('selected');
+    });
 
     btn.disabled = false;
     btn.textContent = 'Reveal Selected (uses credits)';
