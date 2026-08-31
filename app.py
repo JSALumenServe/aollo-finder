@@ -399,19 +399,45 @@ def reveal():
 @app.route("/test-poll/<request_id>")
 def test_poll(request_id):
     """Debug: poll Apollo webhook_result endpoint for a given request_id."""
-    # Try both URL patterns Apollo documents
-    r1 = requests.get(f"https://api.apollo.io/api/v1/webhook_result/{request_id}", headers=apollo_headers(), timeout=10)
-    r2 = requests.get(f"https://api.apollo.io/v1/webhook_result/{request_id}", headers=apollo_headers(), timeout=10)
-    return jsonify({"v1_with_api": {"status": r1.status_code, "body": r1.json()},
-                    "v1_without_api": {"status": r2.status_code, "body": r2.json()}})
+    key = APOLLO_API_KEY
+    urls = [
+        ("header_auth",     f"https://api.apollo.io/api/v1/webhook_result/{request_id}"),
+        ("queryparam_auth", f"https://api.apollo.io/api/v1/webhook_result/{request_id}?api_key={key}"),
+        ("v1_queryparam",   f"https://api.apollo.io/v1/webhook_result/{request_id}?api_key={key}"),
+    ]
+    results = {}
+    for label, url in urls:
+        try:
+            r = requests.get(url, headers=apollo_headers(), timeout=10)
+            results[label] = {"status": r.status_code, "body": r.json()}
+        except Exception as e:
+            results[label] = {"error": str(e)}
+    return jsonify(results)
 
 
 @app.route("/test-phone/<person_id>")
 def test_phone(person_id):
-    """Debug: reveal phone for one person and return the raw Apollo response."""
-    payload = {"id": person_id, "reveal_phone_number": True, "webhook_url": f"{APP_BASE_URL}/webhook/phone"}
+    """Debug: reveal phone, grab request_id, wait 15s, poll Apollo webhook_result."""
+    payload = {"id": person_id, "reveal_phone_number": True}
     resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)
-    return jsonify({"status": resp.status_code, "apollo": resp.json()})
+    reveal_data = resp.json()
+    enrichment = reveal_data.get("phone_enrichment") or {}
+    request_id = enrichment.get("request_id", "")
+    # Wait 15 seconds then poll
+    time.sleep(15)
+    poll_results = {}
+    key = APOLLO_API_KEY
+    for label, url in [
+        ("api_v1_header",   f"https://api.apollo.io/api/v1/webhook_result/{request_id}"),
+        ("api_v1_queryparam", f"https://api.apollo.io/api/v1/webhook_result/{request_id}?api_key={key}"),
+        ("v1_queryparam",   f"https://api.apollo.io/v1/webhook_result/{request_id}?api_key={key}"),
+    ]:
+        try:
+            r = requests.get(url, headers=apollo_headers(), timeout=10)
+            poll_results[label] = {"status": r.status_code, "body": r.json()}
+        except Exception as e:
+            poll_results[label] = {"error": str(e)}
+    return jsonify({"reveal_status": resp.status_code, "request_id": request_id, "poll_results": poll_results})
 
 
 @app.route("/webhook/phone", methods=["POST"])
