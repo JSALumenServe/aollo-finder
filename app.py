@@ -183,6 +183,24 @@ def search():
     contacts = [format_contact(p) for p in people]
     credits  = {"remaining": result.get("credits_remaining")}
 
+    # Restore any previously revealed email/phone from database
+    if contacts and db is not None:
+        try:
+            ids  = [c["id"] for c in contacts]
+            rows = db.table("revealed_contacts").select("person_id,email,phone").in_("person_id", ids).execute()
+            saved = {r["person_id"]: r for r in (rows.data or [])}
+            for c in contacts:
+                r = saved.get(c["id"])
+                if r:
+                    if r.get("email") and "@" in r["email"]:
+                        c["email"] = r["email"]
+                        c["email_revealed"] = True
+                    if r.get("phone"):
+                        c["phone"] = r["phone"]
+                        c["phone_revealed"] = True
+        except Exception as e:
+            app.logger.error(f"Restore reveals error: {e}")
+
     # Check availability for each contact in parallel (no credits spent)
     if contacts:
         with ThreadPoolExecutor(max_workers=10) as ex:
@@ -237,6 +255,24 @@ def bulk_search():
         with ThreadPoolExecutor(max_workers=batch_size) as ex:
             for result in ex.map(search_one, batch):
                 all_contacts.extend(result)
+
+    # Restore previously revealed data
+    if all_contacts and db is not None:
+        try:
+            ids  = [c["id"] for c in all_contacts]
+            rows = db.table("revealed_contacts").select("person_id,email,phone").in_("person_id", ids).execute()
+            saved = {r["person_id"]: r for r in (rows.data or [])}
+            for c in all_contacts:
+                r = saved.get(c["id"])
+                if r:
+                    if r.get("email") and "@" in r["email"]:
+                        c["email"] = r["email"]
+                        c["email_revealed"] = True
+                    if r.get("phone"):
+                        c["phone"] = r["phone"]
+                        c["phone_revealed"] = True
+        except Exception as e:
+            app.logger.error(f"Restore reveals error: {e}")
 
     total_in_file = len(companies)
     searched      = len(company_list)
@@ -313,8 +349,14 @@ def reveal():
         person  = result.get("person", {})
         email   = person.get("email", "")
         credits = {"remaining": result.get("credits_remaining")}
+        clean_email = email if "@" in (email or "") else None
+        if clean_email and db is not None:
+            try:
+                db.table("revealed_contacts").upsert({"person_id": person_id, "email": clean_email}).execute()
+            except Exception as e:
+                app.logger.error(f"Save reveal error: {e}")
         log_usage("reveal", {"reveal_type": "email", "contact_name": contact_name, "contact_company": contact_company})
-        return jsonify({"email": email if "@" in (email or "") else None, "credits": credits})
+        return jsonify({"email": clean_email, "credits": credits})
     except requests.exceptions.HTTPError as e:
         return jsonify({"error": f"Apollo API error: {e.response.status_code} — {e.response.text}"}), 500
     except Exception as e:
@@ -343,6 +385,7 @@ def webhook_phone():
         if pid and phone and db is not None:
             try:
                 db.table("phone_results").upsert({"person_id": pid, "phone": phone}).execute()
+                db.table("revealed_contacts").upsert({"person_id": pid, "phone": phone}).execute()
             except Exception as e:
                 app.logger.error(f"Phone webhook store error: {e}")
 
