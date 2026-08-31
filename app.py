@@ -54,7 +54,7 @@ def log_usage(action: str, data: dict):
 
 
 def search_apollo(params: dict) -> dict:
-    payload = {"page": 1, "per_page": 10}
+    payload = {"page": 1, "per_page": params.pop("per_page", 10)}
     if params.get("name"):
         payload["q_keywords"] = params["name"]
     if params.get("company"):
@@ -238,7 +238,7 @@ def bulk_search():
         return jsonify({"error": "No company names found in the file."}), 400
 
     def search_one(company):
-        result = search_apollo({"company": company, "title": titles, "location": location})
+        result = search_apollo({"company": company, "title": titles, "location": location, "per_page": 5})
         contacts = []
         if "error" not in result:
             for p in result.get("people", []):

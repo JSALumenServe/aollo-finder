@@ -367,7 +367,7 @@
 
       allContacts = data.contacts;
       document.getElementById('count-badge').textContent = `${data.count} contacts found`;
-      document.getElementById('export-btn').style.display = data.count > 0 ? 'block' : 'none';
+      document.getElementById('export-btn').style.display = 'inline-block';
       document.getElementById('result-sub').textContent =
         `Searched ${data.companies} of ${data.total} companies · ${data.count} contacts returned`;
       document.getElementById('select-all-row').style.display = data.count > 0 ? 'flex' : 'none';
