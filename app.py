@@ -54,7 +54,7 @@ def log_usage(action: str, data: dict):
 
 
 def search_apollo(params: dict) -> dict:
-    payload = {"page": 1, "per_page": params.pop("per_page", 10)}
+    payload = {"page": 1, "per_page": params.get("per_page", 10)}
     if params.get("name"):
         payload["q_keywords"] = params["name"]
     if params.get("company"):
@@ -238,7 +238,7 @@ def bulk_search():
         return jsonify({"error": "No company names found in the file."}), 400
 
     def search_one(company):
-        result = search_apollo({"company": company, "title": titles, "location": location, "per_page": 5})
+        result = search_apollo({"company": company, "title": titles, "location": location})
         contacts = []
         if "error" not in result:
             for p in result.get("people", []):
@@ -256,11 +256,12 @@ def bulk_search():
             for result in ex.map(search_one, batch):
                 all_contacts.extend(result)
 
-    # Restore previously revealed data
+    # Restore previously revealed data (single DB call, no per-contact API calls)
     if all_contacts and db is not None:
         try:
-            ids  = [c["id"] for c in all_contacts]
-            rows = db.table("revealed_contacts").select("person_id,email,phone").in_("person_id", ids).execute()
+            ids   = [c["id"] for c in all_contacts]
+            # Supabase IN filter supports up to 1000 values
+            rows  = db.table("revealed_contacts").select("person_id,email,phone").in_("person_id", ids).execute()
             saved = {r["person_id"]: r for r in (rows.data or [])}
             for c in all_contacts:
                 r = saved.get(c["id"])
