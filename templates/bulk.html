@@ -213,11 +213,9 @@
 
     <div class="reveal-bar" id="reveal-bar" style="display:none">
       <span id="selected-count">0 selected</span>
-      <div class="reveal-type-toggle">
-        <button class="toggle-pill active" id="pill-email" onclick="setRevealType('email')">✉️ Email</button>
-        <button class="toggle-pill" id="pill-phone" onclick="setRevealType('phone')">📞 Phone</button>
-      </div>
-      <button class="btn-reveal-all" id="btn-reveal-all" onclick="revealSelected()">Reveal Selected (uses credits)</button>
+      <button class="btn-reveal-all" id="btn-reveal-all" onclick="revealSelected('both')" style="background:#1a73e8">✉️📞 Reveal Email + Phone</button>
+      <button class="btn-reveal-all" onclick="revealSelected('email')" style="background:#2e7d32;margin-left:6px">✉️ Email only</button>
+      <button class="btn-reveal-all" onclick="revealSelected('phone')" style="background:#e65100;margin-left:6px">📞 Phone only</button>
     </div>
 
     <label class="select-all-row" id="select-all-row" style="display:none">
@@ -442,13 +440,18 @@
     updateSelectedCount();
   }
 
-  async function revealSelected() {
+  async function revealSelected(type) {
+    if (type === 'both') {
+      await revealSelected('email');
+      await revealSelected('phone');
+      return;
+    }
     const checked = [...document.querySelectorAll('.contact-check:checked')];
     if (!checked.length) return;
 
     const btn = document.getElementById('btn-reveal-all');
     btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-sm"></span> Revealing ${checked.length}...`;
+    btn.innerHTML = `<span class="spinner-sm"></span> Revealing ${type === 'email' ? 'emails' : 'phones'} for ${checked.length}...`;
 
     let done = 0;
     for (const cb of checked) {
@@ -462,15 +465,15 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id: personId, type: revealType,
+            id: personId, type,
             contact_name: nameEl?.textContent || '',
             contact_company: companyEl?.textContent || '',
           }),
         });
         const data = await resp.json();
-        const field = document.getElementById(`${revealType}-field-${personId}`);
+        const field = document.getElementById(`${type}-field-${personId}`);
 
-        if (revealType === 'phone' && data.queued) {
+        if (type === 'phone' && data.queued) {
           if (field) field.querySelector('span').textContent = 'Looking up...';
           let found = false;
           for (let i = 0; i < 20; i++) {
@@ -485,10 +488,10 @@
           if (!found && field) { field.querySelector('span').textContent = 'Not returned'; field.querySelector('span').className = 'not-available'; }
         } else {
           updateCredits(data.credits);
-          const value = revealType === 'email' ? data.email : data.phone;
+          const value = type === 'email' ? data.email : data.phone;
           if (field) {
             if (value) {
-              const link = revealType === 'email'
+              const link = type === 'email'
                 ? `<a href="mailto:${value}" class="revealed-value">${value}</a>`
                 : `<span class="revealed-value">${value}</span>`;
               field.querySelector('span').innerHTML = link;
