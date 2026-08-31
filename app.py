@@ -276,23 +276,6 @@ def bulk_search():
             for result in ex.map(search_one, batch):
                 all_contacts.extend(result)
 
-    # For contacts not yet in DB, check Apollo (captures free previously-revealed data)
-    # Cap at 60 to stay within Render's timeout
-    needs_check = [c for c in all_contacts if not c.get("email_revealed") and not c.get("phone_revealed")][:60]
-    if needs_check:
-        with ThreadPoolExecutor(max_workers=10) as ex:
-            futures = {ex.submit(check_availability, c["id"]): c["id"] for c in needs_check}
-            id_map  = {c["id"]: c for c in all_contacts}
-            for future in as_completed(futures):
-                pid = futures[future]
-                av  = future.result()
-                c   = id_map.get(pid)
-                if c:
-                    if av.get("email"):
-                        c["email"] = av["email"]; c["email_revealed"] = True
-                    if av.get("phone"):
-                        c["phone"] = av["phone"]; c["phone_revealed"] = True
-
     # Restore previously revealed data (single DB call, no per-contact API calls)
     if all_contacts and db is not None:
         try:
