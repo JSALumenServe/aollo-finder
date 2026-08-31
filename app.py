@@ -409,6 +409,14 @@ def reveal():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/test-phone/<person_id>")
+def test_phone(person_id):
+    """Debug: reveal phone for one person and return the raw Apollo response."""
+    payload = {"id": person_id, "reveal_phone_number": True, "webhook_url": f"{APP_BASE_URL}/webhook/phone"}
+    resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)
+    return jsonify({"status": resp.status_code, "apollo": resp.json()})
+
+
 @app.route("/webhook/phone", methods=["POST"])
 def webhook_phone():
     """Apollo posts phone results here asynchronously."""
