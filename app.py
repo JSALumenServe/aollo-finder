@@ -362,6 +362,7 @@ def reveal():
             resp.raise_for_status()
             result = resp.json()
             person = result.get("person") or {}
+            app.logger.info(f"PHONE REVEAL response keys: {list(result.keys())}, person keys: {list(person.keys())}, sanitized_phone={person.get('sanitized_phone')}, phone_numbers={person.get('phone_numbers')}")
             # Apollo often returns phone synchronously in the same response
             phone = person.get("sanitized_phone") or person.get("mobile_phone") or ""
             if not phone:
