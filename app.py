@@ -98,7 +98,7 @@ def format_contact(person: dict) -> dict:
 
 
 def check_availability(person_id: str) -> dict:
-    """Check if Apollo has email/phone for a contact without spending credits."""
+    """Check Apollo for a contact — captures actual email/phone if already revealed."""
     try:
         resp = requests.post(
             APOLLO_ENRICH_URL,
@@ -107,16 +107,30 @@ def check_availability(person_id: str) -> dict:
             timeout=8,
         )
         if not resp.ok:
-            return {"has_email": None, "has_phone": None}
-        p = resp.json().get("person") or {}
-        email  = p.get("email", "")
+            return {"has_email": None, "has_phone": None, "email": None, "phone": None}
+        p      = resp.json().get("person") or {}
+        email  = p.get("email", "") or ""
         status = p.get("email_status", "")
         phones = p.get("phone_numbers") or []
-        has_email = bool((email and "@" in email) or status in ("verified", "unverified", "likely to engage"))
-        has_phone = bool(phones or p.get("sanitized_phone"))
-        return {"has_email": has_email, "has_phone": has_phone}
+        phone  = p.get("sanitized_phone", "") or ""
+        if not phone and phones:
+            phone = phones[0].get("sanitized_number") or phones[0].get("raw_number") or ""
+        clean_email = email if "@" in email else None
+        has_email   = bool(clean_email or status in ("verified", "unverified", "likely to engage"))
+        has_phone   = bool(phones or phone)
+        # Save to DB if Apollo returned real values (previously revealed data comes back free)
+        if db is not None and (clean_email or phone):
+            try:
+                db.table("revealed_contacts").upsert({
+                    "person_id": person_id,
+                    **({"email": clean_email} if clean_email else {}),
+                    **({"phone": phone} if phone else {}),
+                }).execute()
+            except Exception:
+                pass
+        return {"has_email": has_email, "has_phone": has_phone, "email": clean_email, "phone": phone}
     except Exception:
-        return {"has_email": None, "has_phone": None}
+        return {"has_email": None, "has_phone": None, "email": None, "phone": None}
 
 
 def parse_company_list(file) -> list:
@@ -201,15 +215,21 @@ def search():
         except Exception as e:
             app.logger.error(f"Restore reveals error: {e}")
 
-    # Check availability for each contact in parallel (no credits spent)
+    # Check availability — also captures real email/phone if Apollo returns them for free
     if contacts:
         with ThreadPoolExecutor(max_workers=10) as ex:
             futures = {ex.submit(check_availability, c["id"]): i for i, c in enumerate(contacts)}
             for future in as_completed(futures):
-                i   = futures[future]
-                av  = future.result()
+                i  = futures[future]
+                av = future.result()
                 contacts[i]["has_email"] = av["has_email"]
                 contacts[i]["has_phone"] = av["has_phone"]
+                if av.get("email") and not contacts[i]["email_revealed"]:
+                    contacts[i]["email"] = av["email"]
+                    contacts[i]["email_revealed"] = True
+                if av.get("phone") and not contacts[i]["phone_revealed"]:
+                    contacts[i]["phone"] = av["phone"]
+                    contacts[i]["phone_revealed"] = True
 
     log_usage("search", {
         "search_name":     search_params["name"],
@@ -255,6 +275,23 @@ def bulk_search():
         with ThreadPoolExecutor(max_workers=batch_size) as ex:
             for result in ex.map(search_one, batch):
                 all_contacts.extend(result)
+
+    # For contacts not yet in DB, check Apollo (captures free previously-revealed data)
+    # Cap at 60 to stay within Render's timeout
+    needs_check = [c for c in all_contacts if not c.get("email_revealed") and not c.get("phone_revealed")][:60]
+    if needs_check:
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            futures = {ex.submit(check_availability, c["id"]): c["id"] for c in needs_check}
+            id_map  = {c["id"]: c for c in all_contacts}
+            for future in as_completed(futures):
+                pid = futures[future]
+                av  = future.result()
+                c   = id_map.get(pid)
+                if c:
+                    if av.get("email"):
+                        c["email"] = av["email"]; c["email_revealed"] = True
+                    if av.get("phone"):
+                        c["phone"] = av["phone"]; c["phone_revealed"] = True
 
     # Restore previously revealed data (single DB call, no per-contact API calls)
     if all_contacts and db is not None:
