@@ -399,8 +399,11 @@ def reveal():
 @app.route("/test-poll/<request_id>")
 def test_poll(request_id):
     """Debug: poll Apollo webhook_result endpoint for a given request_id."""
-    resp = requests.get(f"https://api.apollo.io/api/v1/webhook_result/{request_id}", headers=apollo_headers(), timeout=15)
-    return jsonify({"status": resp.status_code, "apollo": resp.json()})
+    # Try both URL patterns Apollo documents
+    r1 = requests.get(f"https://api.apollo.io/api/v1/webhook_result/{request_id}", headers=apollo_headers(), timeout=10)
+    r2 = requests.get(f"https://api.apollo.io/v1/webhook_result/{request_id}", headers=apollo_headers(), timeout=10)
+    return jsonify({"v1_with_api": {"status": r1.status_code, "body": r1.json()},
+                    "v1_without_api": {"status": r2.status_code, "body": r2.json()}})
 
 
 @app.route("/test-phone/<person_id>")
