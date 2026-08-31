@@ -278,7 +278,7 @@
     document.getElementById('selected-count').textContent = `${checked} selected`;
     document.getElementById('reveal-bar').style.display = checked > 0 ? 'flex' : 'none';
     document.getElementById('btn-reveal-all').textContent =
-      `Reveal ${checked} ${revealType === 'email' ? 'Email' : 'Phone'}${checked !== 1 ? 's' : ''} (uses credits)`;
+      `Reveal ${checked} Contact${checked !== 1 ? 's' : ''} — Email + Phone (uses credits)`;
   }
 
   function exportCSV() {
