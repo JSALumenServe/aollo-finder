@@ -48,28 +48,52 @@ def update_credits_cache(result: dict):
 
 def _fetch_phone_after_delay(person_id: str, delay: int = 40):
     """Background thread: wait for Apollo to process the reveal, then pull the phone directly."""
+    # Log that thread started
+    if db is not None:
+        try:
+            db.table("phone_results").upsert({"person_id": f"__thread_start_{person_id[:20]}", "phone": f"started delay={delay}"}).execute()
+        except Exception:
+            pass
+
     time.sleep(delay)
-    for attempt in range(3):
+
+    for attempt in range(4):
         try:
             resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id},
                                  headers=apollo_headers(), timeout=15)
-            if not resp.ok:
-                break
-            person = resp.json().get("person") or {}
+            raw = resp.json()
+            person = raw.get("person") or {}
             phone = ""
             for pn in (person.get("phone_numbers") or []):
                 phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
                 if phone:
                     break
             phone = phone or person.get("sanitized_phone") or person.get("mobile_phone") or ""
+
+            # Log every attempt result to DB for diagnostics
+            if db is not None:
+                try:
+                    import json as _j
+                    db.table("phone_results").upsert({
+                        "person_id": f"__thread_a{attempt}_{person_id[:16]}",
+                        "phone": f"phone={phone or 'NONE'} status={resp.status_code} pn_count={len(person.get('phone_numbers') or [])}"
+                    }).execute()
+                except Exception:
+                    pass
+
             if phone and db is not None:
                 db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
                 db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
                 return  # success
-            # Phone not available yet — wait another 20s and retry
-            if attempt < 2:
-                time.sleep(20)
-        except Exception:
+
+            if attempt < 3:
+                time.sleep(30)
+        except Exception as e:
+            if db is not None:
+                try:
+                    db.table("phone_results").upsert({"person_id": f"__thread_err_{person_id[:16]}", "phone": str(e)[:100]}).execute()
+                except Exception:
+                    pass
             break
 
 
