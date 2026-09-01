@@ -513,11 +513,12 @@
       await new Promise(r => setTimeout(r, type === 'phone' ? 800 : 150));
     }
 
-    // After all queued, poll ALL phones in parallel every 3s
+    // After all queued, wait 15s for Apollo to process, then poll in parallel
     if (phoneQueue.length) {
-      btn.innerHTML = `<span class="spinner-sm"></span> Waiting for ${phoneQueue.length} phone(s)...`;
+      btn.innerHTML = `<span class="spinner-sm"></span> Waiting 15s for Apollo to process ${phoneQueue.length} phone(s)...`;
+      await new Promise(r => setTimeout(r, 15000));
       const pending = new Set(phoneQueue.map(p => p.personId));
-      for (let i = 0; i < 24 && pending.size > 0; i++) {
+      for (let i = 0; i < 18 && pending.size > 0; i++) {
         await new Promise(r => setTimeout(r, 5000));
         await Promise.all([...pending].map(async pid => {
           const poll = await fetch(`/phone-result/${pid}`);
