@@ -358,10 +358,27 @@ def reveal():
             resp.raise_for_status()
             result = resp.json()
             person = result.get("person") or {}
-            # Apollo returns request_id to poll for async phone enrichment
+            log_usage("reveal", {"reveal_type": "phone", "contact_name": contact_name, "contact_company": contact_company})
+
+            # Check if Apollo returned the phone synchronously (already-revealed contacts)
+            phone = ""
+            for pn in (person.get("phone_numbers") or []):
+                phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
+                if phone:
+                    break
+            phone = phone or person.get("sanitized_phone") or person.get("mobile_phone") or ""
+            if phone and db is not None:
+                try:
+                    db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
+                    db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
+                except Exception:
+                    pass
+            if phone:
+                return jsonify({"phone": phone, "person_id": person_id})
+
+            # Phone not in response — async path; webhook will deliver it
             enrichment = result.get("phone_enrichment") or {}
             apollo_request_id = enrichment.get("request_id") or str(result.get("request_id") or "")
-            log_usage("reveal", {"reveal_type": "phone", "contact_name": contact_name, "contact_company": contact_company})
             if apollo_request_id and db is not None:
                 try:
                     db.table("phone_results").upsert({"person_id": person_id, "apollo_request_id": apollo_request_id}).execute()
@@ -437,18 +454,40 @@ def webhook_phone():
 
 @app.route("/phone-result/<person_id>", methods=["GET"])
 def phone_result(person_id):
-    """Re-fetch the person from Apollo to pick up any phone that was processed after reveal."""
-    if db is None:
-        return jsonify({"phone": None})
+    """Check DB first; fall back to direct Apollo call (free, no credit) to catch webhook-delivered results."""
+    # DB check first
+    if db is not None:
+        try:
+            rows = db.table("phone_results").select("phone").eq("person_id", person_id).execute()
+            row = rows.data[0] if rows.data else None
+            if row and row.get("phone") and not row["phone"].startswith("__webhook_log"):
+                return jsonify({"phone": row["phone"]})
+        except Exception:
+            pass
+
+    # Fallback: call Apollo directly (no reveal_phone_number flag = free, returns cached data)
     try:
-        # Check if already saved
-        rows = db.table("phone_results").select("phone").eq("person_id", person_id).execute()
-        row = rows.data[0] if rows.data else None
-        if row and row.get("phone"):
-            return jsonify({"phone": row["phone"]})
-        return jsonify({"phone": None})
-    except Exception as e:
-        return jsonify({"phone": None, "error": str(e)})
+        resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id}, headers=apollo_headers(), timeout=10)
+        if resp.ok:
+            person = resp.json().get("person") or {}
+            phone = ""
+            for pn in (person.get("phone_numbers") or []):
+                phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
+                if phone:
+                    break
+            phone = phone or person.get("sanitized_phone") or person.get("mobile_phone") or ""
+            if phone:
+                if db is not None:
+                    try:
+                        db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
+                        db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
+                    except Exception:
+                        pass
+                return jsonify({"phone": phone})
+    except Exception:
+        pass
+
+    return jsonify({"phone": None})
 
 
 if __name__ == "__main__":

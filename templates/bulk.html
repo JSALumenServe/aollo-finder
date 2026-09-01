@@ -509,8 +509,7 @@
 
       done++;
       btn.innerHTML = `<span class="spinner-sm"></span> Revealing... ${done}/${checked.length}`;
-      // Space out phone reveals so Apollo's webhooks arrive spread out (not all at once)
-      await new Promise(r => setTimeout(r, type === 'phone' ? 800 : 150));
+      await new Promise(r => setTimeout(r, type === 'phone' ? 300 : 150));
     }
 
     // After all queued, wait 15s for Apollo to process, then poll in parallel
@@ -518,9 +517,9 @@
       btn.innerHTML = `<span class="spinner-sm"></span> Waiting for Apollo to process ${phoneQueue.length} phone(s)...`;
       // Ping server every 5s to keep Render awake so Apollo's webhooks land
       const keepAlive = setInterval(() => fetch('/credits').catch(()=>{}), 5000);
-      await new Promise(r => setTimeout(r, 15000));
+      await new Promise(r => setTimeout(r, 5000));
       const pending = new Set(phoneQueue.map(p => p.personId));
-      for (let i = 0; i < 18 && pending.size > 0; i++) {
+      for (let i = 0; i < 24 && pending.size > 0; i++) {
         await new Promise(r => setTimeout(r, 5000));
         await Promise.all([...pending].map(async pid => {
           const poll = await fetch(`/phone-result/${pid}`);
