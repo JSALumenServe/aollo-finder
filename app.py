@@ -439,21 +439,8 @@ def phone_result(person_id):
         row = rows.data[0] if rows.data else None
         if row and row.get("phone"):
             return jsonify({"phone": row["phone"]})
-        # Re-call with reveal flag — Apollo returns cached result for already-revealed contacts
-        resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id, "reveal_phone_number": True, "webhook_url": f"{APP_BASE_URL}/webhook/phone"}, headers=apollo_headers(), timeout=10)
-        if not resp.ok:
-            return jsonify({"phone": None})
-        person = resp.json().get("person") or {}
-        phone = person.get("sanitized_phone") or person.get("mobile_phone") or ""
-        if not phone:
-            for pn in (person.get("phone_numbers") or []):
-                phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
-                if phone:
-                    break
-        if phone:
-            db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
-            db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
-        return jsonify({"phone": phone or None})
+        # Phone not in DB yet — webhook hasn't arrived, tell frontend to keep polling
+        return jsonify({"phone": None})
     except Exception as e:
         return jsonify({"phone": None, "error": str(e)})
 

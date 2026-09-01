@@ -509,7 +509,8 @@
 
       done++;
       btn.innerHTML = `<span class="spinner-sm"></span> Revealing... ${done}/${checked.length}`;
-      await new Promise(r => setTimeout(r, 150));
+      // Space out phone reveals so Apollo's webhooks arrive spread out (not all at once)
+      await new Promise(r => setTimeout(r, type === 'phone' ? 800 : 150));
     }
 
     // After all queued, poll ALL phones in parallel every 3s
