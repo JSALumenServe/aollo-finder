@@ -519,10 +519,13 @@
       const keepAlive = setInterval(() => fetch('/credits').catch(()=>{}), 5000);
       await new Promise(r => setTimeout(r, 5000));
       const pending = new Set(phoneQueue.map(p => p.personId));
-      for (let i = 0; i < 24 && pending.size > 0; i++) {
+      const maxPolls = 24;
+      for (let i = 0; i < maxPolls && pending.size > 0; i++) {
         await new Promise(r => setTimeout(r, 5000));
+        const isFinal = (i === maxPolls - 1);
         await Promise.all([...pending].map(async pid => {
-          const poll = await fetch(`/phone-result/${pid}`);
+          const url = isFinal ? `/phone-result/${pid}?final=1` : `/phone-result/${pid}`;
+          const poll = await fetch(url);
           const pd   = await poll.json();
           if (pd.phone) {
             const { field } = phoneQueue.find(p => p.personId === pid);

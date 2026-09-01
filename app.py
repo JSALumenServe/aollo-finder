@@ -454,38 +454,40 @@ def webhook_phone():
 
 @app.route("/phone-result/<person_id>", methods=["GET"])
 def phone_result(person_id):
-    """Check DB first; fall back to direct Apollo call (free, no credit) to catch webhook-delivered results."""
-    # DB check first
+    """Check DB for webhook-delivered result. Pass ?final=1 for one direct Apollo check at end of polling."""
     if db is not None:
         try:
             rows = db.table("phone_results").select("phone").eq("person_id", person_id).execute()
             row = rows.data[0] if rows.data else None
-            if row and row.get("phone") and not row["phone"].startswith("__webhook_log"):
+            if row and row.get("phone") and not str(row["phone"]).startswith("__webhook_log"):
                 return jsonify({"phone": row["phone"]})
         except Exception:
             pass
 
-    # Fallback: call Apollo directly (no reveal_phone_number flag = free, returns cached data)
-    try:
-        resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id}, headers=apollo_headers(), timeout=10)
-        if resp.ok:
-            person = resp.json().get("person") or {}
-            phone = ""
-            for pn in (person.get("phone_numbers") or []):
-                phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
+    # Only call Apollo directly on the final poll (caller passes ?final=1)
+    if request.args.get("final") == "1":
+        try:
+            resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id, "reveal_phone_number": True,
+                                 "webhook_url": f"{APP_BASE_URL}/webhook/phone"},
+                                 headers=apollo_headers(), timeout=10)
+            if resp.ok:
+                person = resp.json().get("person") or {}
+                phone = ""
+                for pn in (person.get("phone_numbers") or []):
+                    phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
+                    if phone:
+                        break
+                phone = phone or person.get("sanitized_phone") or person.get("mobile_phone") or ""
                 if phone:
-                    break
-            phone = phone or person.get("sanitized_phone") or person.get("mobile_phone") or ""
-            if phone:
-                if db is not None:
-                    try:
-                        db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
-                        db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
-                    except Exception:
-                        pass
-                return jsonify({"phone": phone})
-    except Exception:
-        pass
+                    if db is not None:
+                        try:
+                            db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
+                            db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
+                        except Exception:
+                            pass
+                    return jsonify({"phone": phone})
+        except Exception:
+            pass
 
     return jsonify({"phone": None})
 
