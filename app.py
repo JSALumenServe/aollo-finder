@@ -28,9 +28,21 @@ if SUPABASE_URL and SUPABASE_KEY:
     except Exception as e:
         app.logger.error(f"Supabase init failed: {e}")
 
+_cached_credits = {"remaining": None, "used": None}
+
 
 def apollo_headers():
     return {"X-Api-Key": APOLLO_API_KEY, "Content-Type": "application/json"}
+
+
+def update_credits_cache(result: dict):
+    """Pull credit info from any Apollo enrichment response and cache it."""
+    remaining = result.get("credits_remaining")
+    used = result.get("credits_used")
+    if remaining is not None:
+        _cached_credits["remaining"] = remaining
+    if used is not None:
+        _cached_credits["used"] = used
 
 
 def log_usage(action: str, data: dict):
@@ -317,27 +329,8 @@ def bulk_search():
 
 @app.route("/credits")
 def credits():
-    """Return current Apollo credit balance. Uses enrich API which reliably returns credits_remaining."""
-    try:
-        # Hit the search API with a 1-result query — it returns credits_remaining in the response
-        resp = requests.post(
-            APOLLO_SEARCH_URL,
-            json={"page": 1, "per_page": 1, "person_titles": ["CEO"]},
-            headers=apollo_headers(),
-            timeout=10,
-        )
-        data      = resp.json()
-        app.logger.info(f"Credits response keys: {list(data.keys())}")
-        # Try several known key names Apollo has used
-        remaining = (
-            data.get("credits_remaining") or
-            data.get("rate_limit_remaining") or
-            data.get("credits", {}).get("remaining") if isinstance(data.get("credits"), dict) else None
-        )
-        used = data.get("credits_used") or data.get("rate_limit_used")
-        return jsonify({"remaining": remaining, "used": used, "_keys": list(data.keys())})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    """Return cached Apollo credit balance (updated after every reveal). No API call needed."""
+    return jsonify(_cached_credits.copy())
 
 
 @app.route("/reveal", methods=["POST"])
@@ -358,6 +351,7 @@ def reveal():
             resp.raise_for_status()
             result = resp.json()
             person = result.get("person") or {}
+            update_credits_cache(result)
             log_usage("reveal", {"reveal_type": "phone", "contact_name": contact_name, "contact_company": contact_company})
 
             # Check if Apollo returned the phone synchronously (already-revealed contacts)
@@ -398,7 +392,8 @@ def reveal():
         result  = resp.json()
         person  = result.get("person", {})
         email   = person.get("email", "")
-        credits = {"remaining": result.get("credits_remaining")}
+        update_credits_cache(result)
+        credits = _cached_credits.copy()
         clean_email = email if "@" in (email or "") else None
         if clean_email and db is not None:
             try:
