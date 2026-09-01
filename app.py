@@ -403,6 +403,13 @@ def webhook_phone():
     """Apollo posts phone results here asynchronously."""
     payload = request.get_json(silent=True) or {}
     app.logger.info(f"WEBHOOK RECEIVED: keys={list(payload.keys())}")
+    # Log raw payload to DB for diagnostics
+    if db is not None:
+        try:
+            import json as _json
+            db.table("phone_results").upsert({"person_id": f"__webhook_log_{payload.get('request_id','?')}", "phone": _json.dumps(payload)[:500]}).execute()
+        except Exception:
+            pass
     people  = []
     if payload.get("person"):   people.append(payload["person"])
     if payload.get("people"):   people.extend(payload["people"])
@@ -439,26 +446,6 @@ def phone_result(person_id):
         row = rows.data[0] if rows.data else None
         if row and row.get("phone"):
             return jsonify({"phone": row["phone"]})
-        # Webhook hasn't arrived yet — re-call Apollo with reveal flag (phone should be ready by now)
-        try:
-            r2 = requests.post(APOLLO_ENRICH_URL,
-                               json={"id": person_id, "reveal_phone_number": True,
-                                     "webhook_url": f"{APP_BASE_URL}/webhook/phone"},
-                               headers=apollo_headers(), timeout=10)
-            if r2.ok:
-                p2 = r2.json().get("person") or {}
-                phone = p2.get("sanitized_phone") or p2.get("mobile_phone") or ""
-                if not phone:
-                    for pn in (p2.get("phone_numbers") or []):
-                        phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
-                        if phone:
-                            break
-                if phone:
-                    db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
-                    db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
-                    return jsonify({"phone": phone})
-        except Exception:
-            pass
         return jsonify({"phone": None})
     except Exception as e:
         return jsonify({"phone": None, "error": str(e)})

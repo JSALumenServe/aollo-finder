@@ -515,7 +515,9 @@
 
     // After all queued, wait 15s for Apollo to process, then poll in parallel
     if (phoneQueue.length) {
-      btn.innerHTML = `<span class="spinner-sm"></span> Waiting 15s for Apollo to process ${phoneQueue.length} phone(s)...`;
+      btn.innerHTML = `<span class="spinner-sm"></span> Waiting for Apollo to process ${phoneQueue.length} phone(s)...`;
+      // Ping server every 5s to keep Render awake so Apollo's webhooks land
+      const keepAlive = setInterval(() => fetch('/credits').catch(()=>{}), 5000);
       await new Promise(r => setTimeout(r, 15000));
       const pending = new Set(phoneQueue.map(p => p.personId));
       for (let i = 0; i < 18 && pending.size > 0; i++) {
@@ -533,6 +535,7 @@
       phoneQueue.filter(p => pending.has(p.personId)).forEach(({ field }) => {
         if (field) { field.querySelector('span').textContent = 'Not returned'; field.querySelector('span').className = 'not-available'; }
       });
+      clearInterval(keepAlive);
     }
 
     // Uncheck all remaining selected cards (phone pass, or email-only)
