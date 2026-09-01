@@ -517,9 +517,9 @@
       btn.innerHTML = `<span class="spinner-sm"></span> Waiting for Apollo to process ${phoneQueue.length} phone(s)...`;
       // Ping server every 5s to keep Render awake so Apollo's webhooks land
       const keepAlive = setInterval(() => fetch('/credits').catch(()=>{}), 5000);
-      await new Promise(r => setTimeout(r, 5000));
+      await new Promise(r => setTimeout(r, 8000));
       const pending = new Set(phoneQueue.map(p => p.personId));
-      const maxPolls = 24;
+      const maxPolls = 20;
       for (let i = 0; i < maxPolls && pending.size > 0; i++) {
         await new Promise(r => setTimeout(r, 5000));
         const isFinal = (i === maxPolls - 1);

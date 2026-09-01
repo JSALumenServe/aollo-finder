@@ -2,6 +2,7 @@ import os
 import csv
 import io
 import time
+import threading
 import requests
 import openpyxl
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -43,6 +44,33 @@ def update_credits_cache(result: dict):
         _cached_credits["remaining"] = remaining
     if used is not None:
         _cached_credits["used"] = used
+
+
+def _fetch_phone_after_delay(person_id: str, delay: int = 40):
+    """Background thread: wait for Apollo to process the reveal, then pull the phone directly."""
+    time.sleep(delay)
+    for attempt in range(3):
+        try:
+            resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id},
+                                 headers=apollo_headers(), timeout=15)
+            if not resp.ok:
+                break
+            person = resp.json().get("person") or {}
+            phone = ""
+            for pn in (person.get("phone_numbers") or []):
+                phone = pn.get("sanitized_number") or pn.get("raw_number") or ""
+                if phone:
+                    break
+            phone = phone or person.get("sanitized_phone") or person.get("mobile_phone") or ""
+            if phone and db is not None:
+                db.table("phone_results").upsert({"person_id": person_id, "phone": phone}).execute()
+                db.table("revealed_contacts").upsert({"person_id": person_id, "phone": phone}).execute()
+                return  # success
+            # Phone not available yet — wait another 20s and retry
+            if attempt < 2:
+                time.sleep(20)
+        except Exception:
+            break
 
 
 def log_usage(action: str, data: dict):
@@ -370,15 +398,9 @@ def reveal():
             if phone:
                 return jsonify({"phone": phone, "person_id": person_id})
 
-            # Phone not in response — async path; webhook will deliver it
-            enrichment = result.get("phone_enrichment") or {}
-            apollo_request_id = enrichment.get("request_id") or str(result.get("request_id") or "")
-            if apollo_request_id and db is not None:
-                try:
-                    db.table("phone_results").upsert({"person_id": person_id, "apollo_request_id": apollo_request_id}).execute()
-                except Exception:
-                    pass
-            return jsonify({"queued": True, "person_id": person_id, "apollo_request_id": apollo_request_id})
+            # Phone not in immediate response — start background thread to fetch after Apollo processes it
+            threading.Thread(target=_fetch_phone_after_delay, args=(person_id, 40), daemon=True).start()
+            return jsonify({"queued": True, "person_id": person_id})
         except requests.exceptions.HTTPError as e:
             return jsonify({"error": f"Apollo API error: {e.response.status_code} — {e.response.text}"}), 500
         except Exception as e:
