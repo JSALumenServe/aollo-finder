@@ -18,9 +18,10 @@ APOLLO_API_KEY = os.getenv("APOLLO_API_KEY")
 SUPABASE_URL   = os.getenv("SUPABASE_URL")
 SUPABASE_KEY   = os.getenv("SUPABASE_KEY")
 
-APOLLO_SEARCH_URL = "https://api.apollo.io/v1/mixed_people/api_search"
-APOLLO_ENRICH_URL = "https://api.apollo.io/v1/people/match"
-APP_BASE_URL      = "https://apollo-finder-ls.onrender.com"
+APOLLO_SEARCH_URL    = "https://api.apollo.io/v1/mixed_people/api_search"
+APOLLO_ENRICH_URL    = "https://api.apollo.io/v1/people/match"
+APP_BASE_URL         = "https://apollo-finder-ls.onrender.com"
+SUPABASE_WEBHOOK_URL = "https://viahldmykvnbdfmbwqjy.supabase.co/functions/v1/apollo-phone-webhook"
 
 db = None
 if SUPABASE_URL and SUPABASE_KEY:
@@ -397,7 +398,7 @@ def reveal():
         return jsonify({"error": "No contact ID provided."}), 400
 
     if reveal_type == "phone":
-        payload = {"id": person_id, "reveal_phone_number": True, "webhook_url": f"{APP_BASE_URL}/webhook/phone"}
+        payload = {"id": person_id, "reveal_phone_number": True, "webhook_url": SUPABASE_WEBHOOK_URL}
         try:
             resp = requests.post(APOLLO_ENRICH_URL, json=payload, headers=apollo_headers(), timeout=15)
             resp.raise_for_status()
@@ -509,7 +510,7 @@ def phone_result(person_id):
     if request.args.get("final") == "1":
         try:
             resp = requests.post(APOLLO_ENRICH_URL, json={"id": person_id, "reveal_phone_number": True,
-                                 "webhook_url": f"{APP_BASE_URL}/webhook/phone"},
+                                 "webhook_url": SUPABASE_WEBHOOK_URL},
                                  headers=apollo_headers(), timeout=10)
             if resp.ok:
                 person = resp.json().get("person") or {}
